@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
-import time
+import json
 import os
 import shutil
-import numpy as np
 import threading
+import time
+
+import numpy as np
 import zmq
 
 try:
@@ -114,22 +116,16 @@ in_progress = {}
 
 def fan_code():
 
-    print("[fan] Loading preprocessed image filenames...")
-    with open(IMAGE_LIST_FILE, 'r') as f:
-        image_list = [ s.strip() for s in f ]
-
-
     print("Press Enter when the workers are ready: ")
     _ = raw_input()
-    print("[fan] Submitting batches...")
+    print("[fan] Submitting jobs...")
+
+    fan_start = time.time()
 
     image_index = 0
     for batch_index in range(BATCH_COUNT):
         batch_number = batch_index+1
-        if FULL_REPORT or (batch_number % 10 == 0):
-            print("\nBatch {} of {}".format(batch_number, BATCH_COUNT))
       
-        begin_time = time.time()
         batch_first_index = image_index
         batch_data, image_index = load_preprocessed_batch(image_list, image_index)
 
@@ -141,19 +137,20 @@ def fan_code():
 
         in_progress[batch_number] = time.time()
         to_workers.send_json(submitted_job)
-        print("[fan] -> batch number {}".format(batch_number))
+        print("[fan] -> job number {} {}".format(batch_number, batch_ids))
 
-    print("[fan] Done submitting batches")
+    fan_time_s = time.time()-fan_start
+    print("[fan] Done submitting batches. Submission took {} s".format(fan_time_s))
 
 
 def funnel_code():
+
+    funnel_start = time.time()
 
     # Cleanup results directory
     if os.path.isdir(RESULTS_DIR):
         shutil.rmtree(RESULTS_DIR)
     os.mkdir(RESULTS_DIR)
-
-    tstart = time.time()
 
     for _ in range(BATCH_COUNT):
         done_job = from_workers.recv_json()
@@ -171,8 +168,8 @@ def funnel_code():
                 for prob in softmax_vector:
                     f.write('{}\n'.format(prob))
 
-    tend = time.time()
-    print("[funnel] Total elapsed time: %d ms" % ((tend-tstart)*1000))
+    funnel_time_s = time.time()-funnel_start
+    print("[funnel] Done receiving batches. Receiving took {} s".format(funnel_time_s))
 
 
 ## We need one thread to feed the ZeroMQ, another (the main one) to read back from it:
@@ -183,4 +180,20 @@ fan_thread.start()
 funnel_code()
 
 fan_thread.join()
+
+
+## Store benchmarking results:
+#
+output_dict = {
+    'batch_size': BATCH_SIZE,
+    'batch_count': BATCH_COUNT,
+
+
+    'fan_time_s': fan_time_s,
+    'funnel_time_s': funnel_time_s,
+    'avg_send_batch_time_ms': fan_time_s*1000/BATCH_COUNT,
+    'avg_rountrip_time_ms': funnel_time_s*1000/BATCH_COUNT
+}
+with open('tmp-ck-timer.json', 'w') as out_file:
+    json.dump(output_dict, out_file, indent=4, sort_keys=True)
 
