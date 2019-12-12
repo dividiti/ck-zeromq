@@ -119,6 +119,7 @@ in_progress     = {}    # to be written to by one thread and read by another
 output_dict     = {     # to be topped up by both threads
     'batch_size': BATCH_SIZE,
     'batch_count': BATCH_COUNT,
+    'avg_inference_time_ms_by_worker_id': {},
 }
 
 
@@ -163,16 +164,19 @@ def funnel_code():
     os.mkdir(RESULTS_DIR)
 
     funnel_start = time.time()
+    inference_times_ms_by_worker_id = {}
 
     for _ in range(BATCH_COUNT):
         done_job = from_workers.recv_json()
 
         roundtrip_time_ms   = int((time.time()-in_progress[done_job['job_id']])*1000)
         batch_ids           = done_job['batch_ids']
-        batch_size          = len(batch_ids)
         batch_results       = done_job['batch_results']
         worker_id           = done_job['worker_id']
         inference_time_ms   = done_job['inference_time_ms']
+        if worker_id not in inference_times_ms_by_worker_id:
+            inference_times_ms_by_worker_id[worker_id] = []
+        inference_times_ms_by_worker_id[worker_id].append( inference_time_ms )
         print("[funnel] <- [worker {}] {}, inference={} ms, roundtrip={} ms".format(worker_id, batch_ids, inference_time_ms, roundtrip_time_ms))
 
         for sample_id in batch_results:
@@ -184,6 +188,12 @@ def funnel_code():
 
     funnel_time_s = time.time()-funnel_start
     print("[funnel] Done receiving batches. Receiving took {} s".format(funnel_time_s))
+
+    for worker_id in inference_times_ms_by_worker_id:
+        offset = 1 if len(inference_times_ms_by_worker_id[worker_id]) > 1 else 0    # skip the potential cold startup in case there is more data
+        avg_inference_time_ms_by_worker_id = np.mean(inference_times_ms_by_worker_id[worker_id][offset:])
+        output_dict['avg_inference_time_ms_by_worker_id'][worker_id] = avg_inference_time_ms_by_worker_id
+        print("[funnel] Average batch inference time on [worker {}] is {}".format(worker_id, avg_inference_time_ms_by_worker_id))
 
     output_dict['funnel_time_s']        = funnel_time_s
     output_dict['avg_rountrip_time_ms'] = funnel_time_s*1000/BATCH_COUNT
