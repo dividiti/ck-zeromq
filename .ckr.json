@@ -5,6 +5,11 @@
   "data_name": "ck-zeromq",
   "dict": {
     "shared": "git",
-    "url": "git@github.com:dividiti/ck-zeromq.git"
+    "url": "git@github.com:dividiti/ck-zeromq.git",
+    "repo_deps": [
+        {
+            "repo_uoa": "ck-tensorrt"
+        }
+    ]
   }
 }
