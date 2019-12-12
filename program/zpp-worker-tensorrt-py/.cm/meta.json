@@ -1,0 +1,60 @@
+{
+  "backup_data_uid": "0b248b2913eb548b", 
+  "build_compiler_vars": {}, 
+  "data_name": "zpp-worker-tensorrt-py", 
+  "main_language": "python", 
+  "no_compile": "yes", 
+  "no_target_file": "yes", 
+  "process_in_tmp": "yes", 
+  "program": "yes", 
+  "run_cmds": {
+    "default": {
+      "ignore_return_code": "no", 
+      "run_time": {
+        "run_cmd_main": "$<<CK_ENV_COMPILER_PYTHON_FILE>>$ ../zpp_worker_trt.py"
+      }
+    }
+  }, 
+  "run_deps": {
+    "lib-python-numpy": {
+      "local": "yes", 
+      "name": "Python NumPy library", 
+      "sort": 10, 
+      "tags": "lib,python-package,numpy"
+    }, 
+    "lib-python-pycuda": {
+      "local": "yes", 
+      "name": "Python PyCUDA library", 
+      "sort": 20, 
+      "tags": "lib,python-package,pycuda"
+    }, 
+    "lib-python-tensorrt": {
+      "local": "yes", 
+      "name": "Python TensorRT library", 
+      "sort": 30, 
+      "tags": "lib,python-package,tensorrt"
+    }, 
+    "lib-python-zmq": {
+      "local": "yes", 
+      "name": "Python ZeroMQ library", 
+      "sort": 40, 
+      "tags": "lib,python-package,zmq"
+    }, 
+    "weights": {
+      "local": "yes", 
+      "name": "TensorRT model", 
+      "sort": 50, 
+      "tags": "tensorrt,model,image-classification"
+    }
+  }, 
+  "run_vars": {
+    "CK_WORKER_ID": "",
+    "CK_WORKER_JOB_LIMIT": 0,
+    "CK_HUB_IP": "localhost"
+  }, 
+  "tags": [
+    "image-classification", 
+    "onnx", 
+    "lang-python"
+  ]
+}
