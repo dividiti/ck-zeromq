@@ -1,0 +1,10 @@
+{
+  "data_uoa": "ck-zeromq",
+  "data_uid": "aa14f24b90ec9276",
+  "data_alias": "ck-zeromq",
+  "data_name": "ck-zeromq",
+  "dict": {
+    "shared": "git",
+    "url": "git@github.com:dividiti/ck-zeromq.git"
+  }
+}
