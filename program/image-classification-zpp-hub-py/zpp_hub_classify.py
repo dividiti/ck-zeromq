@@ -129,10 +129,11 @@ def fan_code():
         batch_first_index = image_index
         batch_data, image_index = load_preprocessed_batch(image_list, image_index)
 
+        batch_ids = list(range(batch_first_index, image_index))
         submitted_job = {
             'job_id': batch_number,
             'batch_data': batch_data.tolist(),
-            'batch_ids': list(range(batch_first_index, image_index)),
+            'batch_ids': batch_ids,
         }
 
         in_progress[batch_number] = time.time()
