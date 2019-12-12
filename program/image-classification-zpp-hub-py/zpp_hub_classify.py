@@ -112,7 +112,11 @@ with open(IMAGE_LIST_FILE, 'r') as f:
     image_list = [ s.strip() for s in f ]
 
 
+
+## (Shared) placeholders:
+#
 in_progress = {}
+fan_time_s  = 0
 
 def fan_code():
 
@@ -188,7 +192,6 @@ fan_thread.join()
 output_dict = {
     'batch_size': BATCH_SIZE,
     'batch_count': BATCH_COUNT,
-
 
     'fan_time_s': fan_time_s,
     'funnel_time_s': funnel_time_s,
