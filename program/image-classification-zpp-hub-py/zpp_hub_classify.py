@@ -157,22 +157,24 @@ def fan_code():
 
 def funnel_code():
 
-    funnel_start = time.time()
-
     # Cleanup results directory
     if os.path.isdir(RESULTS_DIR):
         shutil.rmtree(RESULTS_DIR)
     os.mkdir(RESULTS_DIR)
 
+    funnel_start = time.time()
+
     for _ in range(BATCH_COUNT):
         done_job = from_workers.recv_json()
 
-        roundtrip_ms = int((time.time()-in_progress[done_job['job_id']])*1000)
-        print("[funnel] <- {} {}, roundtrip={} ms".format(done_job['worker_id'], done_job['batch_ids'], roundtrip_ms))
+        roundtrip_time_ms   = int((time.time()-in_progress[done_job['job_id']])*1000)
+        batch_ids           = done_job['batch_ids']
+        batch_size          = len(batch_ids)
+        batch_results       = done_job['batch_results']
+        worker_id           = done_job['worker_id']
+        inference_time_ms   = done_job['inference_time_ms']
+        print("[funnel] <- [worker {}] {}, inference={} ms, roundtrip={} ms".format(worker_id, batch_ids, inference_time_ms, roundtrip_time_ms))
 
-        batch_ids       = done_job['batch_ids']
-        batch_size      = len(batch_ids)
-        batch_results   = done_job['batch_results']
         for sample_id in batch_results:
             softmax_vector = batch_results[sample_id][-1000:]    # skipping the background class on the left (if present)
             res_file = os.path.join(RESULTS_DIR, image_list[int(sample_id)])

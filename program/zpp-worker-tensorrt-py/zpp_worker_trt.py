@@ -128,12 +128,12 @@ with trt_engine.create_execution_context() as trt_context:
 
         raw_batch_results = np.split(h_output, max_batch_size)
 
-        inference_time = time.time() - inference_start
+        inference_time_ms = (time.time() - inference_start)*1000
 
         response = {
             'job_id': job_id,
             'worker_id': WORKER_ID,
-            'inference_time': inference_time,
+            'inference_time_ms': inference_time_ms,
             'batch_ids': batch_ids,
             'batch_results': {},
         }
@@ -143,8 +143,8 @@ with trt_engine.create_execution_context() as trt_context:
 
         to_funnel.send_json(response)
 
-        print("[worker {}] classified a batch {} in {}s".format(WORKER_ID, batch_ids, inference_time))
-        total_inference_time += inference_time
+        print("[worker {}] classified a batch {} in {} ms".format(WORKER_ID, batch_ids, inference_time_ms))
+        total_inference_time += inference_time_ms
 
         done_count += 1
 
