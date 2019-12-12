@@ -54,7 +54,9 @@
   }, 
   "tags": [
     "image-classification", 
-    "onnx", 
+    "zeromq", 
+    "zmq",
+    "worker",
     "lang-python"
   ]
 }
