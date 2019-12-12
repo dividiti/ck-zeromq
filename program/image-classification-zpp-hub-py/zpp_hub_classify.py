@@ -115,8 +115,12 @@ with open(IMAGE_LIST_FILE, 'r') as f:
 
 ## (Shared) placeholders:
 #
-in_progress = {}
-fan_time_s  = 0
+in_progress     = {}    # to be written to by one thread and read by another
+output_dict     = {     # to be topped up by both threads
+    'batch_size': BATCH_SIZE,
+    'batch_count': BATCH_COUNT,
+}
+
 
 def fan_code():
 
@@ -147,6 +151,9 @@ def fan_code():
     fan_time_s = time.time()-fan_start
     print("[fan] Done submitting batches. Submission took {} s".format(fan_time_s))
 
+    output_dict['fan_time_s']               = fan_time_s
+    output_dict['avg_send_batch_time_ms']   = fan_time_s*1000/BATCH_COUNT
+
 
 def funnel_code():
 
@@ -176,6 +183,9 @@ def funnel_code():
     funnel_time_s = time.time()-funnel_start
     print("[funnel] Done receiving batches. Receiving took {} s".format(funnel_time_s))
 
+    output_dict['funnel_time_s']        = funnel_time_s
+    output_dict['avg_rountrip_time_ms'] = funnel_time_s*1000/BATCH_COUNT
+
 
 ## We need one thread to feed the ZeroMQ, another (the main one) to read back from it:
 #
@@ -189,15 +199,6 @@ fan_thread.join()
 
 ## Store benchmarking results:
 #
-output_dict = {
-    'batch_size': BATCH_SIZE,
-    'batch_count': BATCH_COUNT,
-
-    'fan_time_s': fan_time_s,
-    'funnel_time_s': funnel_time_s,
-    'avg_send_batch_time_ms': fan_time_s*1000/BATCH_COUNT,
-    'avg_rountrip_time_ms': funnel_time_s*1000/BATCH_COUNT
-}
 with open('tmp-ck-timer.json', 'w') as out_file:
     json.dump(output_dict, out_file, indent=4, sort_keys=True)
 
