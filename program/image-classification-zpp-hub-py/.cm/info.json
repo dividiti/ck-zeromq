@@ -1,0 +1,16 @@
+{
+  "backup_data_uid": "6495587eb9150c0b", 
+  "backup_module_uid": "b0ac08fe1d3c2615", 
+  "backup_module_uoa": "program", 
+  "control": {
+    "engine": "CK", 
+    "iso_datetime": "2019-12-12T12:55:29.646618", 
+    "version": [
+      "1", 
+      "11", 
+      "4", 
+      "1"
+    ]
+  }, 
+  "data_name": "image-classification-zpp-hub-py"
+}
