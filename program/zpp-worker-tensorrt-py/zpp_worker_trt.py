@@ -116,6 +116,8 @@ with trt_engine.create_execution_context() as trt_context:
             print("[worker {}] unable to perform inference on {}-sample batch. Skipping it.".format(WORKER_ID, batch_size))
             continue
 
+        ravel_start = time.time()
+
         vectored_batch = np.array(batch_data).ravel().astype(VECTOR_DATA_TYPE)
 
         inference_start = time.time()
@@ -143,7 +145,7 @@ with trt_engine.create_execution_context() as trt_context:
 
         to_funnel.send_json(response)
 
-        print("[worker {}] classified a batch {} in {} ms".format(WORKER_ID, batch_ids, inference_time_ms))
+        print("[worker {}] classified a batch {} in {:.2f} ms (after spending {:.2f} ms to ravel)".format(WORKER_ID, batch_ids, inference_time_ms, (inference_start-ravel_start)*1000))
         total_inference_time += inference_time_ms
 
         done_count += 1
