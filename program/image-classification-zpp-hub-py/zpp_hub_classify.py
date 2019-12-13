@@ -26,6 +26,7 @@ from_workers = zmq_context.socket(zmq.PULL)
 from_workers.bind("tcp://*:5558")
 
 
+SLEEP_AFTER_SEND_MS     = int(os.getenv('CK_SLEEP_AFTER_SEND_MS', 0))
 
 ## Model properties:
 #
@@ -149,7 +150,9 @@ def fan_code():
         to_workers.send_json(submitted_job)
         print("[fan] -> job number {} {}".format(batch_number, batch_ids))
 
-    fan_time_s = time.time()-fan_start
+        time.sleep(SLEEP_AFTER_SEND_MS/1000)  # do not overflow the ZeroMQ
+
+    fan_time_s = time.time()-fan_start-SLEEP_AFTER_SEND_MS/1000
     print("[fan] Done submitting batches. Submission took {} s".format(fan_time_s))
 
     output_dict['fan_time_s']               = fan_time_s
