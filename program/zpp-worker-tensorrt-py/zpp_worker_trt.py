@@ -106,7 +106,6 @@ with trt_engine.create_execution_context() as trt_context:
     while JOBS_LIMIT<1 or done_count < JOBS_LIMIT:
         job         = from_factory.recv_json()
         job_id      = job['job_id']
-        batch_ids   = job['batch_ids']
         batch_data  = job['batch_data']
         batch_size  = int( len(batch_data)/(MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH*MODEL_IMAGE_CHANNELS) )
 
