@@ -3,6 +3,7 @@
 import json
 import os
 import shutil
+import struct
 import threading
 import time
 
@@ -25,6 +26,8 @@ to_workers.bind("tcp://*:5557")
 from_workers = zmq_context.socket(zmq.PULL)
 from_workers.bind("tcp://*:5558")
 
+## General mode:
+BINARY_MODE             = os.getenv('CK_BINARY_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
 
 SLEEP_AFTER_SEND_MS     = int(os.getenv('CK_SLEEP_AFTER_SEND_MS', 0))
 
@@ -138,18 +141,25 @@ def fan_code():
       
         batch_first_index = image_index
         batch_data, image_index = load_preprocessed_batch(image_list, image_index)
+        batch_data = batch_data.astype('int8').ravel().tolist()
 
         batch_ids = list(range(batch_first_index, image_index))
-        submitted_job = {
-            'job_id': batch_number,
-            'batch_data': batch_data.ravel().tolist(),
-        }
 
         in_progress[batch_number] = {
             'submission_time':  time.time(),
             'batch_ids':        batch_ids,
         }
-        to_workers.send_json(submitted_job)
+
+        if BINARY_MODE:
+            binary_submitted_job = struct.pack('I{}b'.format(len(batch_data)), batch_number, *batch_data)
+            to_workers.send(binary_submitted_job)
+        else:
+            json_submitted_job = {
+                'job_id': batch_number,
+                'batch_data': batch_data,
+            }
+            to_workers.send_json(json_submitted_job)
+
         print("[fan] -> job number {} {}".format(batch_number, batch_ids))
 
         time.sleep(SLEEP_AFTER_SEND_MS/1000)  # do not overflow the ZeroMQ
