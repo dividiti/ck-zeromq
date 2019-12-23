@@ -11,6 +11,8 @@ import pycuda.driver as cuda
 import pycuda.autoinit
 import pycuda.tools
 
+## General mode:
+BINARY_MODE             = os.getenv('CK_BINARY_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
 
 ## Worker properties:
 HUB_IP                  = os.getenv('CK_HUB_IP', 'localhost')
@@ -74,11 +76,11 @@ for interface_layer in trt_engine:
         if MODEL_SOFTMAX_LAYER=='' or interface_layer == MODEL_SOFTMAX_LAYER:
             model_output_shape  = shape
             h_output            = host_mem
-            h_1softmax_vec_len  = trt.volume(shape)
 
     print("{} layer {}: dtype={}, shape={}, elements_per_max_batch={}".format(interface_type, interface_layer, dtype, shape, size))
 
 cuda_stream         = cuda.Stream()
+model_monopixels    = trt.volume(model_input_shape)
 model_classes       = trt.volume(model_output_shape)
 
 if MODEL_DATA_LAYOUT == 'NHWC':
@@ -104,23 +106,30 @@ with trt_engine.create_execution_context() as trt_context:
     done_count = 0
     total_inference_time = 0
     while JOBS_LIMIT<1 or done_count < JOBS_LIMIT:
-        job         = from_factory.recv_json()
-        job_id      = job['job_id']
-        batch_data  = job['batch_data']
-        batch_size  = int( len(batch_data)/(MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH*MODEL_IMAGE_CHANNELS) )
+
+        if BINARY_MODE:
+            binary_job  = from_factory.recv()
+            batch_data  = list( struct.unpack('i{}b'.format(len(binary_job)-4), binary_job) )
+            job_id      = batch_data.pop(0)
+        else:
+            json_job    = from_factory.recv_json()
+            job_id      = json_job['job_id']
+            batch_data  = json_job['batch_data']
+
+        batch_size  = int( len(batch_data)/model_monopixels )
 
         if batch_size>max_batch_size:   # basic protection. FIXME: could report to hub, could split and still do inference...
             print("[worker {}] unable to perform inference on {}-sample batch. Skipping it.".format(WORKER_ID, batch_size))
             continue
 
-        bytize_start = time.time()
+        floatize_start = time.time()
 
-        #vectored_batch = np.array(batch_data, dtype=np.float32)
-        vectored_batch = bytearray(struct.pack("{}f".format(len(batch_data)), *batch_data)) # almost twice as fast!
+        #float_batch = np.array(batch_data, dtype=np.float32)
+        float_batch = struct.pack("{}f".format(len(batch_data)), *batch_data) # almost twice as fast!
 
         inference_start = time.time()
 
-        cuda.memcpy_htod_async(d_inputs[0], vectored_batch, cuda_stream)    # assuming one input layer for image classification
+        cuda.memcpy_htod_async(d_inputs[0], float_batch, cuda_stream)    # assuming one input layer for image classification
         trt_context.execute_async(bindings=model_bindings, batch_size=batch_size, stream_handle=cuda_stream.handle)
         for output in h_d_outputs:
             cuda.memcpy_dtoh_async(output['host_mem'], output['dev_mem'], cuda_stream)
@@ -132,12 +141,12 @@ with trt_engine.create_execution_context() as trt_context:
             'job_id': job_id,
             'worker_id': WORKER_ID,
             'inference_time_ms': inference_time_ms,
-            'raw_batch_results': h_output[:h_1softmax_vec_len*batch_size].tolist(),
+            'raw_batch_results': h_output[:model_classes*batch_size].tolist(),
         }
 
         to_funnel.send_json(response)
 
-        print("[worker {}] classified batch #{} in {:.2f} ms (after spending {:.2f} ms to convert to bytearray)".format(WORKER_ID, job_id, inference_time_ms, (inference_start-bytize_start)*1000))
+        print("[worker {}] classified batch #{} in {:.2f} ms (after spending {:.2f} ms to convert to floats)".format(WORKER_ID, job_id, inference_time_ms, (inference_start-floatize_start)*1000))
         total_inference_time += inference_time_ms
 
         done_count += 1
