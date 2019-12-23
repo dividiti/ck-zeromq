@@ -146,7 +146,10 @@ def fan_code():
             'batch_ids': batch_ids,
         }
 
-        in_progress[batch_number] = time.time()
+        in_progress[batch_number] = {
+            'submission_time':  time.time(),
+            'batch_ids':        batch_ids,
+        }
         to_workers.send_json(submitted_job)
         print("[fan] -> job number {} {}".format(batch_number, batch_ids))
 
@@ -172,8 +175,9 @@ def funnel_code():
     for _ in range(BATCH_COUNT):
         done_job = from_workers.recv_json()
 
-        roundtrip_time_ms   = int((time.time()-in_progress[done_job['job_id']])*1000)
-        batch_ids           = done_job['batch_ids']
+        local_metadata      = in_progress[done_job['job_id']]
+        roundtrip_time_ms   = int((time.time()-local_metadata['submission_time'])*1000)
+        batch_ids           = local_metadata['batch_ids']
         batch_results       = done_job['batch_results']
         worker_id           = done_job['worker_id']
         inference_time_ms   = done_job['inference_time_ms']
