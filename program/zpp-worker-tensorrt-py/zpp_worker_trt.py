@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import numpy as np
+#import numpy as np
 import os
 import struct
 import time
@@ -127,8 +127,6 @@ with trt_engine.create_execution_context() as trt_context:
             cuda.memcpy_dtoh_async(output['host_mem'], output['dev_mem'], cuda_stream)
         cuda_stream.synchronize()
 
-        raw_batch_results = np.split(h_output, max_batch_size)
-
         inference_time_ms = (time.time() - inference_start)*1000
 
         response = {
@@ -136,11 +134,7 @@ with trt_engine.create_execution_context() as trt_context:
             'worker_id': WORKER_ID,
             'inference_time_ms': inference_time_ms,
             'raw_batch_results': h_output[:h_1softmax_vec_len*batch_size].tolist(),
-            'batch_results': {},
         }
-        for i in range(batch_size):
-            sample_id = batch_ids[i]
-            response['batch_results'][sample_id]=raw_batch_results[i].tolist()
 
         to_funnel.send_json(response)
 
