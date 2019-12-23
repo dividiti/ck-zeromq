@@ -143,7 +143,6 @@ def fan_code():
         submitted_job = {
             'job_id': batch_number,
             'batch_data': batch_data.ravel().tolist(),
-            'batch_ids': batch_ids,
         }
 
         in_progress[batch_number] = {
