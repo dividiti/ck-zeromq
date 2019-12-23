@@ -13,6 +13,7 @@ import pycuda.tools
 
 ## General mode:
 BINARY_MODE             = os.getenv('CK_BINARY_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
+FP_MODE                 = os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
 
 ## Worker properties:
 HUB_IP                  = os.getenv('CK_HUB_IP', 'localhost')
@@ -109,14 +110,18 @@ with trt_engine.create_execution_context() as trt_context:
 
         if BINARY_MODE:
             binary_job  = from_factory.recv()
-            batch_data  = list( struct.unpack('i{}b'.format(len(binary_job)-4), binary_job) )
-            job_id      = batch_data.pop(0)
+            if FP_MODE:
+                job_id      = struct.unpack('i', binary_job[:4] )[0]
+                batch_size  = (len(binary_job)-4) // 4 // model_monopixels
+            else:
+                batch_data  = list( struct.unpack('i{}b'.format(len(binary_job)-4), binary_job) )
+                job_id      = batch_data.pop(0)
+                batch_size  = len(batch_data) // model_monopixels
         else:
             json_job    = from_factory.recv_json()
             job_id      = json_job['job_id']
             batch_data  = json_job['batch_data']
-
-        batch_size  = int( len(batch_data)/model_monopixels )
+            batch_size  = len(batch_data) // model_monopixels
 
         if batch_size>max_batch_size:   # basic protection. FIXME: could report to hub, could split and still do inference...
             print("[worker {}] unable to perform inference on {}-sample batch. Skipping it.".format(WORKER_ID, batch_size))
@@ -124,8 +129,11 @@ with trt_engine.create_execution_context() as trt_context:
 
         floatize_start = time.time()
 
-        #float_batch = np.array(batch_data, dtype=np.float32)
-        float_batch = struct.pack("{}f".format(len(batch_data)), *batch_data) # almost twice as fast!
+        if BINARY_MODE and FP_MODE:
+            float_batch = binary_job[4:]
+        else:
+            #float_batch = np.array(batch_data, dtype=np.float32)
+            float_batch = struct.pack("{}f".format(len(batch_data)), *batch_data) # almost twice as fast!
 
         inference_start = time.time()
 
