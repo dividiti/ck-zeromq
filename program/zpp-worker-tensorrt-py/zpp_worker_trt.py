@@ -107,7 +107,7 @@ with trt_engine.create_execution_context() as trt_context:
         job_id      = job['job_id']
         batch_ids   = job['batch_ids']
         batch_data  = job['batch_data']
-        batch_size  = len(batch_ids)
+        batch_size  = int( len(batch_data)/(MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH*MODEL_IMAGE_CHANNELS) )
 
         if batch_size>max_batch_size:   # basic protection. FIXME: could report to hub, could split and still do inference...
             print("[worker {}] unable to perform inference on {}-sample batch. Skipping it.".format(WORKER_ID, batch_size))
@@ -134,16 +134,15 @@ with trt_engine.create_execution_context() as trt_context:
             'job_id': job_id,
             'worker_id': WORKER_ID,
             'inference_time_ms': inference_time_ms,
-            'batch_ids': batch_ids,
             'batch_results': {},
         }
-        for i in range(len(batch_ids)):
+        for i in range(batch_size):
             sample_id = batch_ids[i]
             response['batch_results'][sample_id]=raw_batch_results[i].tolist()
 
         to_funnel.send_json(response)
 
-        print("[worker {}] classified a batch {} in {:.2f} ms (after spending {:.2f} ms to convert to bytearray)".format(WORKER_ID, batch_ids, inference_time_ms, (inference_start-bytize_start)*1000))
+        print("[worker {}] classified batch #{} in {:.2f} ms (after spending {:.2f} ms to convert to bytearray)".format(WORKER_ID, job_id, inference_time_ms, (inference_start-bytize_start)*1000))
         total_inference_time += inference_time_ms
 
         done_count += 1
