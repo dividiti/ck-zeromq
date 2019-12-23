@@ -28,6 +28,7 @@ from_workers.bind("tcp://*:5558")
 
 ## General mode:
 BINARY_MODE             = os.getenv('CK_BINARY_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
+FP_MODE                 = os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
 
 SLEEP_AFTER_SEND_MS     = int(os.getenv('CK_SLEEP_AFTER_SEND_MS', 0))
 
@@ -141,7 +142,14 @@ def fan_code():
       
         batch_first_index = image_index
         batch_data, image_index = load_preprocessed_batch(image_list, image_index)
-        batch_data = batch_data.astype('int8').ravel().tolist()
+        if FP_MODE:
+            batch_data  = batch_data.astype('float32')
+            type_char   = 'f'
+        else:
+            batch_data  = batch_data.astype('int8')
+            type_char   = 'b'
+
+        batch_data = batch_data.ravel().tolist()
 
         batch_ids = list(range(batch_first_index, image_index))
 
@@ -151,7 +159,7 @@ def fan_code():
         }
 
         if BINARY_MODE:
-            binary_submitted_job = struct.pack('I{}b'.format(len(batch_data)), batch_number, *batch_data)
+            binary_submitted_job = struct.pack('<I{}{}'.format(len(batch_data), type_char), batch_number, *batch_data)
             to_workers.send(binary_submitted_job)
         else:
             json_submitted_job = {
