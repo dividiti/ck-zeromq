@@ -74,6 +74,7 @@ for interface_layer in trt_engine:
         if MODEL_SOFTMAX_LAYER=='' or interface_layer == MODEL_SOFTMAX_LAYER:
             model_output_shape  = shape
             h_output            = host_mem
+            h_1softmax_vec_len  = trt.volume(shape)
 
     print("{} layer {}: dtype={}, shape={}, elements_per_max_batch={}".format(interface_type, interface_layer, dtype, shape, size))
 
@@ -134,6 +135,7 @@ with trt_engine.create_execution_context() as trt_context:
             'job_id': job_id,
             'worker_id': WORKER_ID,
             'inference_time_ms': inference_time_ms,
+            'raw_batch_results': h_output[:h_1softmax_vec_len*batch_size].tolist(),
             'batch_results': {},
         }
         for i in range(batch_size):
