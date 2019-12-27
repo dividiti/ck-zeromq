@@ -1,0 +1,96 @@
+{
+  "backup_data_uid": "c4a80957e3ae1c8f", 
+  "build_compiler_vars": {}, 
+  "data_name": "image-classification-zpp-hub-loadgen-py", 
+  "main_language": "python", 
+  "no_compile": "yes", 
+  "no_target_file": "yes", 
+  "process_in_tmp": "yes", 
+  "program": "yes", 
+  "run_cmds": {
+    "default": {
+      "ignore_return_code": "no", 
+      "run_time": {
+        "fine_grain_timer_file": "tmp-ck-timer.json", 
+        "post_process_via_ck": {
+          "data_uoa": "b98ee24399ef4c3a", 
+          "module_uoa": "script", 
+          "script_name": "loadgen_postprocess"
+        }, 
+        "run_cmd_main": "$<<CK_ENV_COMPILER_PYTHON_FILE>>$ ../zpp_hub_classify_loadgen.py"
+      }
+    }
+  }, 
+  "run_deps": {
+    "imagenet-aux": {
+      "force_target_as_host": "yes", 
+      "local": "yes", 
+      "name": "ImageNet dataset (aux)", 
+      "sort": 10, 
+      "tags": "dataset,imagenet,aux"
+    }, 
+    "images": {
+      "force_target_as_host": "yes", 
+      "local": "yes", 
+      "name": "ImageNet dataset (preprocessed subset)", 
+      "sort": 20, 
+      "tags": "dataset,imagenet,preprocessed"
+    }, 
+    "lib-python-loadgen": {
+      "local": "yes", 
+      "name": "Python LoadGen library", 
+      "sort": 40, 
+      "tags": "lib,python-package,loadgen"
+    }, 
+    "lib-python-numpy": {
+      "local": "yes", 
+      "name": "Python NumPy library", 
+      "sort": 50, 
+      "tags": "lib,python-package,numpy"
+    }, 
+    "lib-python-zeromq": {
+      "local": "yes", 
+      "name": "Python ZeroMQ library", 
+      "sort": 60, 
+      "tags": "lib,python-package,zmq"
+    }, 
+    "mlperf-inference-src": {
+      "add_to_path": "no", 
+      "force_target_as_host": "yes", 
+      "local": "yes", 
+      "name": "MLPerf Inference source", 
+      "sort": 110, 
+      "tags": "mlperf,inference,source"
+    }, 
+    "python": {
+      "force_target_as_host": "yes", 
+      "local": "yes", 
+      "name": "Python interpreter", 
+      "sort": 100, 
+      "tags": "compiler,lang-python"
+    }, 
+    "weights": {
+      "local": "yes", 
+      "name": "TensorRT model", 
+      "sort": 30, 
+      "tags": "tensorrt,model,image-classification"
+    }
+  }, 
+  "run_vars": {
+    "CK_BATCH_SIZE": 1, 
+    "CK_LOADGEN_BUFFER_SIZE": 8, 
+    "CK_LOADGEN_CONF_FILE": "", 
+    "CK_LOADGEN_DATASET_SIZE": 20, 
+    "CK_LOADGEN_MODE": "AccuracyOnly", 
+    "CK_LOADGEN_MULTISTREAMNESS": "", 
+    "CK_LOADGEN_SCENARIO": "SingleStream"
+  }, 
+  "tags": [
+    "image-classification", 
+    "zeromq",
+    "zmq",
+    "hub",
+    "loadgen", 
+    "lang-python"
+  ]
+}
