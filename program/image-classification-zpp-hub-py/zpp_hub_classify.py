@@ -192,7 +192,7 @@ def funnel_code():
     for _ in range(BATCH_COUNT):
         done_job = from_workers.recv_json()
 
-        local_metadata      = in_progress[done_job['job_id']]
+        local_metadata      = in_progress.pop(done_job['job_id'])
         roundtrip_time_ms   = int((time.time()-local_metadata['submission_time'])*1000)
         batch_ids           = local_metadata['batch_ids']
         batch_size          = len(batch_ids)
