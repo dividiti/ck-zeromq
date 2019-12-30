@@ -26,6 +26,7 @@ to_workers.bind("tcp://*:5557")
 # Socket to receive results on
 from_workers = zmq_context.socket(zmq.PULL)
 from_workers.bind("tcp://*:5558")
+from_workers.RCVTIMEO = 2000
 
 ###########################################################################################################
 ## NB: if you run into "zmq.error.ZMQError: Address already in use" after a crash,
@@ -141,7 +142,8 @@ def unload_query_samples(sample_indices):
     print('')
 
 
-in_progress  = {}   # local store of metadata about batches between issue_queries and send_responses
+in_progress  = {}                   # local store of metadata about batches between issue_queries and send_responses
+funnel_should_be_running = True     # a way for the fan to signal to the funnel_thread to end
 
 def issue_queries(query_samples):
 
@@ -174,12 +176,18 @@ def issue_queries(query_samples):
 
 def send_responses():
 
+    global funnel_should_be_running
+
     funnel_start = time.time()
     inference_times_ms_by_worker_id = {}
 
-    while True:
+    while funnel_should_be_running:
 
-        done_job            = from_workers.recv_json()
+        try:
+            done_job            = from_workers.recv_json()
+        except Exception as e:
+            continue    # go back and check if the funnel_should_be_running condition has been turned off by the main thread
+
         job_id              = done_job['job_id']
         local_metadata      = in_progress.pop(job_id)
         roundtrip_time_ms   = int((time.time()-local_metadata['submission_time'])*1000)
@@ -238,6 +246,8 @@ def process_latencies(latencies_ns):
 def benchmark_using_loadgen():
     "Perform the benchmark using python API for the LoadGen library"
 
+    global funnel_should_be_running
+
     scenario = {
         'SingleStream':     lg.TestScenario.SingleStream,
         'MultiStream':      lg.TestScenario.MultiStream,
@@ -267,15 +277,16 @@ def benchmark_using_loadgen():
     log_settings.enable_trace = False
 
     funnel_thread = threading.Thread(target=send_responses, args=())
+    funnel_should_be_running = True
     funnel_thread.start()
 
     lg.StartTestWithLogSettings(sut, qsl, ts, log_settings)
 
+    funnel_should_be_running = False    # politely ask the funnel_thread to end
+    funnel_thread.join()                # wait for it to actually end
+
     from_workers.close()
     to_workers.close()
-
-    print("Please press ^C to quit the test")
-    funnel_thread.join()
 
     lg.DestroyQSL(qsl)
     lg.DestroySUT(sut)
