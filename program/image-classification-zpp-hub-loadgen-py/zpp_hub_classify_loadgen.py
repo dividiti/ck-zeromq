@@ -183,7 +183,7 @@ def issue_queries(query_samples):
             elif TRANSFER_MODE == 'pickle':
                 to_workers.send_pyobj(job_data_struct)
 
-        print("[fan] -> job_id={}".format(job_id))
+        print("[fan] -> job_id={} {}".format(job_id, [qs.index for qs in batch]))
 
 
 def send_responses():
