@@ -33,6 +33,10 @@ from_workers.RCVTIMEO = 2000
 ##     run "sudo netstat -ltnp | grep python" and kill the socket-hogging process.
 ###########################################################################################################
 
+## Data transfer:
+#
+TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'json')
+
 
 ## LoadGen test properties:
 #
@@ -157,6 +161,7 @@ def issue_queries(query_samples):
     for j in range(0, len(query_samples), BATCH_SIZE):
         batch       = query_samples[j:j+BATCH_SIZE]   # NB: the last one may be shorter than BATCH_SIZE in length
         batch_data  = np.ravel([ preprocessed_image_buffer[qs.index].astype('int8') for qs in batch ]).tolist()
+        type_char   = 'b'   # TODO: extend this to float32 later
 
         job_id      = batch[0].id   # assume it is both sufficiently unique and sufficiently small to fit our needs
 
@@ -165,11 +170,18 @@ def issue_queries(query_samples):
             'batch':            batch,
         }
     
-        json_submitted_job = {
-            'job_id': job_id,
-            'batch_data': batch_data,
-        }
-        to_workers.send_json(json_submitted_job)
+        if TRANSFER_MODE == 'raw':
+            job_data_raw = struct.pack('<I{}{}'.format(len(batch_data), type_char), job_id, *batch_data)
+            to_workers.send(job_data_raw)
+        else:
+            job_data_struct = {
+                'job_id': job_id,
+                'batch_data': batch_data,
+            }
+            if TRANSFER_MODE == 'json':
+                to_workers.send_json(job_data_struct)
+            elif TRANSFER_MODE == 'pickle':
+                to_workers.send_pyobj(job_data_struct)
 
         print("[fan] -> job_id={}".format(job_id))
 

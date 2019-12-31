@@ -83,7 +83,8 @@
     "CK_LOADGEN_DATASET_SIZE": 20, 
     "CK_LOADGEN_MODE": "AccuracyOnly", 
     "CK_LOADGEN_MULTISTREAMNESS": "", 
-    "CK_LOADGEN_SCENARIO": "SingleStream"
+    "CK_LOADGEN_SCENARIO": "SingleStream",
+    "CK_ZMQ_TRANSFER_MODE": "json"
   }, 
   "tags": [
     "image-classification", 
