@@ -138,8 +138,7 @@ def fan_code():
 
     image_index = 0
     for batch_index in range(BATCH_COUNT):
-        batch_number = batch_index+1
-      
+
         batch_first_index = image_index
         batch_data, image_index = load_preprocessed_batch(image_list, image_index)
         if FP_MODE:
@@ -151,19 +150,20 @@ def fan_code():
 
         batch_data = batch_data.ravel().tolist()
 
-        batch_ids = list(range(batch_first_index, image_index))
+        batch_ids   = list(range(batch_first_index, image_index))
+        job_id      = batch_index+1
 
-        in_progress[batch_number] = {
+        in_progress[job_id] = {
             'submission_time':  time.time(),
             'batch_ids':        batch_ids,
         }
 
         if TRANSFER_MODE == 'raw':
-            job_data_raw = struct.pack('<I{}{}'.format(len(batch_data), type_char), batch_number, *batch_data)
+            job_data_raw = struct.pack('<I{}{}'.format(len(batch_data), type_char), job_id, *batch_data)
             to_workers.send(job_data_raw)
         else:
             job_data_struct = {
-                'job_id': batch_number,
+                'job_id': job_id,
                 'batch_data': batch_data,
             }
             if TRANSFER_MODE == 'json':
@@ -171,7 +171,7 @@ def fan_code():
             elif TRANSFER_MODE == 'pickle':
                 to_workers.send_pyobj(job_data_struct)
 
-        print("[fan] -> job number {} {}".format(batch_number, batch_ids))
+        print("[fan] -> job_id={} {}".format(job_id, batch_ids))
 
         time.sleep(SLEEP_AFTER_SEND_MS/1000)  # do not overflow the ZeroMQ
 
