@@ -158,7 +158,7 @@ with trt_engine.create_execution_context() as trt_context:
 
         to_funnel.send_json(response)
 
-        print("[worker {}] classified batch #{} in {:.2f} ms (after spending {:.2f} ms to convert to floats)".format(WORKER_ID, job_id, inference_time_ms, (inference_start-floatize_start)*1000))
+        print("[worker {}] classified job_id={} [{}] in {:.2f} ms (after spending {:.2f} ms to convert to floats)".format(WORKER_ID, job_id, batch_size, inference_time_ms, (inference_start-floatize_start)*1000))
         total_inference_time += inference_time_ms
 
         done_count += 1
