@@ -12,7 +12,7 @@ import pycuda.autoinit
 import pycuda.tools
 
 ## General mode:
-BINARY_MODE             = os.getenv('CK_BINARY_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
+TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
 FP_MODE                 = os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
 
 ## Worker properties:
@@ -108,19 +108,23 @@ with trt_engine.create_execution_context() as trt_context:
     total_inference_time = 0
     while JOBS_LIMIT<1 or done_count < JOBS_LIMIT:
 
-        if BINARY_MODE:
-            binary_job  = from_factory.recv()
+        if TRANSFER_MODE == 'raw':
+            job_data_raw  = from_factory.recv()
             if FP_MODE:
-                job_id      = struct.unpack('i', binary_job[:4] )[0]
-                batch_size  = (len(binary_job)-4) // 4 // model_monopixels
+                job_id      = struct.unpack('i', job_data_raw[:4] )[0]
+                batch_size  = (len(job_data_raw)-4) // 4 // model_monopixels
             else:
-                batch_data  = list( struct.unpack('i{}b'.format(len(binary_job)-4), binary_job) )
+                batch_data  = list( struct.unpack('i{}b'.format(len(job_data_raw)-4), job_data_raw) )
                 job_id      = batch_data.pop(0)
                 batch_size  = len(batch_data) // model_monopixels
         else:
-            json_job    = from_factory.recv_json()
-            job_id      = json_job['job_id']
-            batch_data  = json_job['batch_data']
+            if TRANSFER_MODE == 'json':
+                job_data_struct    = from_factory.recv_json()
+            elif TRANSFER_MODE == 'pickle':
+                job_data_struct    = from_factory.recv_pyobj()
+
+            job_id      = job_data_struct['job_id']
+            batch_data  = job_data_struct['batch_data']
             batch_size  = len(batch_data) // model_monopixels
 
         if batch_size>max_batch_size:   # basic protection. FIXME: could report to hub, could split and still do inference...
@@ -129,8 +133,8 @@ with trt_engine.create_execution_context() as trt_context:
 
         floatize_start = time.time()
 
-        if BINARY_MODE and FP_MODE:
-            float_batch = binary_job[4:]
+        if TRANSFER_MODE == 'raw' and FP_MODE:
+            float_batch = job_data_raw[4:]
         else:
             #float_batch = np.array(batch_data, dtype=np.float32)
             float_batch = struct.pack("{}f".format(len(batch_data)), *batch_data) # almost twice as fast!

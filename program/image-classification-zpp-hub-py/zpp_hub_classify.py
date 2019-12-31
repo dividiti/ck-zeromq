@@ -27,7 +27,7 @@ from_workers = zmq_context.socket(zmq.PULL)
 from_workers.bind("tcp://*:5558")
 
 ## General mode:
-BINARY_MODE             = os.getenv('CK_BINARY_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
+TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
 FP_MODE                 = os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
 
 SLEEP_AFTER_SEND_MS     = int(os.getenv('CK_SLEEP_AFTER_SEND_MS', 0))
@@ -158,15 +158,18 @@ def fan_code():
             'batch_ids':        batch_ids,
         }
 
-        if BINARY_MODE:
-            binary_submitted_job = struct.pack('<I{}{}'.format(len(batch_data), type_char), batch_number, *batch_data)
-            to_workers.send(binary_submitted_job)
+        if TRANSFER_MODE == 'raw':
+            job_data_raw = struct.pack('<I{}{}'.format(len(batch_data), type_char), batch_number, *batch_data)
+            to_workers.send(job_data_raw)
         else:
-            json_submitted_job = {
+            job_data_struct = {
                 'job_id': batch_number,
                 'batch_data': batch_data,
             }
-            to_workers.send_json(json_submitted_job)
+            if TRANSFER_MODE == 'json':
+                to_workers.send_json(job_data_struct)
+            elif TRANSFER_MODE == 'pickle':
+                to_workers.send_pyobj(job_data_struct)
 
         print("[fan] -> job number {} {}".format(batch_number, batch_ids))
 

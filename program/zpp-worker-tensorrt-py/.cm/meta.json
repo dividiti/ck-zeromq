@@ -48,11 +48,11 @@
     }
   }, 
   "run_vars": {
-    "CK_BINARY_MODE": "NO",
     "CK_FP_MODE": "NO",
     "CK_WORKER_ID": "",
     "CK_WORKER_JOB_LIMIT": 0,
-    "CK_HUB_IP": "localhost"
+    "CK_HUB_IP": "localhost",
+    "CK_ZMQ_TRANSFER_MODE": "raw"
   }, 
   "tags": [
     "image-classification", 
