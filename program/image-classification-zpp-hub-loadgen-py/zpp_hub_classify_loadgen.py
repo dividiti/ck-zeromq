@@ -36,7 +36,9 @@ from_workers.RCVTIMEO = 2000
 ## Data transfer:
 #
 TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'json')
-
+FP_MODE                 = os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
+TRANSFER_TYPE_NP        = np.float32 if FP_MODE else np.int8
+TRANSFER_TYPE_CHAR      = 'f' if FP_MODE else 'b'
 
 ## LoadGen test properties:
 #
@@ -134,7 +136,7 @@ def load_query_samples(sample_indices):     # 0-based indices in our whole datas
 
         nhwc_img = img if MODEL_DATA_LAYOUT == 'NHWC' else img.transpose(2,0,1)
 
-        preprocessed_image_buffer[sample_index] = np.array(nhwc_img).ravel().astype(np.float32)
+        preprocessed_image_buffer[sample_index] = np.array(nhwc_img).ravel().astype(TRANSFER_TYPE_NP)
         tick('l')
     print('')
 
@@ -160,8 +162,7 @@ def issue_queries(query_samples):
 
     for j in range(0, len(query_samples), BATCH_SIZE):
         batch       = query_samples[j:j+BATCH_SIZE]   # NB: the last one may be shorter than BATCH_SIZE in length
-        batch_data  = np.ravel([ preprocessed_image_buffer[qs.index].astype('int8') for qs in batch ]).tolist()
-        type_char   = 'b'   # TODO: extend this to float32 later
+        batch_data  = np.ravel([ preprocessed_image_buffer[qs.index] for qs in batch ]).tolist()
 
         job_id      = batch[0].id   # assume it is both sufficiently unique and sufficiently small to fit our needs
 
@@ -171,7 +172,7 @@ def issue_queries(query_samples):
         }
     
         if TRANSFER_MODE == 'raw':
-            job_data_raw = struct.pack('<I{}{}'.format(len(batch_data), type_char), job_id, *batch_data)
+            job_data_raw = struct.pack('<I{}{}'.format(len(batch_data), TRANSFER_TYPE_CHAR), job_id, *batch_data)
             to_workers.send(job_data_raw)
         else:
             job_data_struct = {
