@@ -149,18 +149,20 @@ with trt_engine.create_execution_context() as trt_context:
             cuda.memcpy_dtoh_async(output['host_mem'], output['dev_mem'], cuda_stream)
         cuda_stream.synchronize()
 
-        inference_time_ms = (time.time() - inference_start)*1000
+        inference_time_ms   = (time.time() - inference_start)*1000
+        floatize_time_ms    = (inference_start-floatize_start)*1000
 
         response = {
             'job_id': job_id,
             'worker_id': WORKER_ID,
+            'floatize_time_ms': floatize_time_ms,
             'inference_time_ms': inference_time_ms,
             'raw_batch_results': h_output[:model_classes*batch_size].tolist(),
         }
 
         to_funnel.send_json(response)
 
-        print("[worker {}] classified job_id={} [{}] in {:.2f} ms (after spending {:.2f} ms to convert to floats)".format(WORKER_ID, job_id, batch_size, inference_time_ms, (inference_start-floatize_start)*1000))
+        print("[worker {}] classified job_id={} [{}] in {:.2f} ms (after spending {:.2f} ms to convert to floats)".format(WORKER_ID, job_id, batch_size, inference_time_ms, floatize_time_ms))
         total_inference_time += inference_time_ms
 
         done_count += 1

@@ -211,10 +211,11 @@ def funnel_code():
         batch_results       = np.split(raw_batch_results, batch_size)
         worker_id           = done_job['worker_id']
         inference_time_ms   = done_job['inference_time_ms']
+        floatize_time_ms    = done_job['floatize_time_ms']
         if worker_id not in inference_times_ms_by_worker_id:
             inference_times_ms_by_worker_id[worker_id] = []
         inference_times_ms_by_worker_id[worker_id].append( inference_time_ms )
-        print("[funnel] <- [worker {}] {}, inference={} ms, roundtrip={} ms".format(worker_id, batch_ids, inference_time_ms, roundtrip_time_ms))
+        print("[funnel] <- [worker {}] {}, to_float={} ms, inference={} ms, roundtrip={} ms".format(worker_id, batch_ids, floatize_time_ms, inference_time_ms, roundtrip_time_ms))
 
         for sample_id, softmax_vector in zip(batch_ids, batch_results):
             trimmed_softmax_vector = softmax_vector[-1000:]    # skipping the background class on the left (if present)
