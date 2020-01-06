@@ -161,8 +161,8 @@ def issue_queries(query_samples):
     tick('Q', len(query_samples))
 
     for j in range(0, len(query_samples), BATCH_SIZE):
-        batch       = query_samples[j:j+BATCH_SIZE]   # NB: the last one may be shorter than BATCH_SIZE in length
-        batch_data  = np.ravel([ preprocessed_image_buffer[qs.index] for qs in batch ]).tolist()
+        batch               = query_samples[j:j+BATCH_SIZE]   # NB: the last one may be shorter than BATCH_SIZE in length
+        batch_vector_numpy  = np.ravel([ preprocessed_image_buffer[qs.index] for qs in batch ])
 
         job_id      = batch[0].id   # assume it is both sufficiently unique and sufficiently small to fit our needs
 
@@ -171,18 +171,26 @@ def issue_queries(query_samples):
             'batch':            batch,
         }
     
-        if TRANSFER_MODE == 'raw':
-            job_data_raw = struct.pack('<I{}{}'.format(len(batch_data), TRANSFER_TYPE_CHAR), job_id, *batch_data)
-            to_workers.send(job_data_raw)
-        else:
+        if TRANSFER_MODE == 'numpy':
             job_data_struct = {
                 'job_id': job_id,
-                'batch_data': batch_data,
+                'batch_data': batch_vector_numpy,
             }
-            if TRANSFER_MODE == 'json':
-                to_workers.send_json(job_data_struct)
-            elif TRANSFER_MODE == 'pickle':
-                to_workers.send_pyobj(job_data_struct)
+            to_workers.send_pyobj(job_data_struct)
+        else:
+            batch_vector_array  = batch_vector_numpy.tolist()
+            if TRANSFER_MODE == 'raw':
+                job_data_raw = struct.pack('<I{}{}'.format(len(batch_vector_array), TRANSFER_TYPE_CHAR), job_id, *batch_vector_array)
+                to_workers.send(job_data_raw)
+            else:
+                job_data_struct = {
+                    'job_id': job_id,
+                    'batch_data': batch_vector_array,
+                }
+                if TRANSFER_MODE == 'json':
+                    to_workers.send_json(job_data_struct)
+                elif TRANSFER_MODE == 'pickle':
+                    to_workers.send_pyobj(job_data_struct)
 
         print("[fan] -> job_id={} {}".format(job_id, [qs.index for qs in batch]))
 
