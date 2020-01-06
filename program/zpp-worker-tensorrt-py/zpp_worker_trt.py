@@ -108,7 +108,10 @@ with trt_engine.create_execution_context() as trt_context:
     total_inference_time = 0
     while JOBS_LIMIT<1 or done_count < JOBS_LIMIT:
 
-        if TRANSFER_MODE == 'raw':
+        if TRANSFER_MODE == 'dummy':
+            job_data_raw        = from_factory.recv()
+            job_id, batch_size  = struct.unpack('ii', job_data_raw )
+        elif TRANSFER_MODE == 'raw':
             job_data_raw  = from_factory.recv()
             if FP_MODE:
                 job_id      = struct.unpack('i', job_data_raw[:4] )[0]
@@ -133,7 +136,9 @@ with trt_engine.create_execution_context() as trt_context:
 
         floatize_start = time.time()
 
-        if TRANSFER_MODE == 'raw' and FP_MODE:
+        if TRANSFER_MODE == 'dummy':
+            pass
+        elif TRANSFER_MODE == 'raw' and FP_MODE:
             float_batch = job_data_raw[4:]
         elif TRANSFER_MODE == 'numpy' and FP_MODE:
             float_batch = batch_data
@@ -143,11 +148,12 @@ with trt_engine.create_execution_context() as trt_context:
 
         inference_start = time.time()
 
-        cuda.memcpy_htod_async(d_inputs[0], float_batch, cuda_stream)    # assuming one input layer for image classification
-        trt_context.execute_async(bindings=model_bindings, batch_size=batch_size, stream_handle=cuda_stream.handle)
-        for output in h_d_outputs:
-            cuda.memcpy_dtoh_async(output['host_mem'], output['dev_mem'], cuda_stream)
-        cuda_stream.synchronize()
+        if TRANSFER_MODE != 'dummy':
+            cuda.memcpy_htod_async(d_inputs[0], float_batch, cuda_stream)    # assuming one input layer for image classification
+            trt_context.execute_async(bindings=model_bindings, batch_size=batch_size, stream_handle=cuda_stream.handle)
+            for output in h_d_outputs:
+                cuda.memcpy_dtoh_async(output['host_mem'], output['dev_mem'], cuda_stream)
+            cuda_stream.synchronize()
 
         inference_time_ms   = (time.time() - inference_start)*1000
         floatize_time_ms    = (inference_start-floatize_start)*1000
@@ -157,7 +163,7 @@ with trt_engine.create_execution_context() as trt_context:
             'worker_id': WORKER_ID,
             'floatize_time_ms': floatize_time_ms,
             'inference_time_ms': inference_time_ms,
-            'raw_batch_results': h_output[:model_classes*batch_size].tolist(),
+            'raw_batch_results': [ 0 ]*1001*batch_size if TRANSFER_MODE == 'dummy' else h_output[:model_classes*batch_size].tolist(),
         }
 
         to_funnel.send_json(response)

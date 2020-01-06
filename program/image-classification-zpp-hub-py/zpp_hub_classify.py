@@ -158,7 +158,10 @@ def fan_code():
             'batch_ids':        batch_ids,
         }
 
-        if TRANSFER_MODE == 'numpy':
+        if TRANSFER_MODE == 'dummy':
+            job_data_raw = struct.pack('<II', job_id, BATCH_SIZE)
+            to_workers.send(job_data_raw)
+        elif TRANSFER_MODE == 'numpy':
             job_data_struct = {
                 'job_id': job_id,
                 'batch_data': batch_vector_numpy,
