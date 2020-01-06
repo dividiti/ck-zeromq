@@ -120,7 +120,7 @@ with trt_engine.create_execution_context() as trt_context:
         else:
             if TRANSFER_MODE == 'json':
                 job_data_struct    = from_factory.recv_json()
-            elif TRANSFER_MODE == 'pickle':
+            elif TRANSFER_MODE in ('pickle', 'numpy'):
                 job_data_struct    = from_factory.recv_pyobj()
 
             job_id      = job_data_struct['job_id']
@@ -135,6 +135,8 @@ with trt_engine.create_execution_context() as trt_context:
 
         if TRANSFER_MODE == 'raw' and FP_MODE:
             float_batch = job_data_raw[4:]
+        elif TRANSFER_MODE == 'numpy' and FP_MODE:
+            float_batch = batch_data
         else:
             #float_batch = np.array(batch_data, dtype=np.float32)
             float_batch = struct.pack("{}f".format(len(batch_data)), *batch_data) # almost twice as fast!

@@ -148,7 +148,7 @@ def fan_code():
             batch_data  = batch_data.astype('int8')
             type_char   = 'b'
 
-        batch_data = batch_data.ravel().tolist()
+        batch_vector_numpy  = batch_data.ravel()
 
         batch_ids   = list(range(batch_first_index, image_index))
         job_id      = batch_index+1
@@ -158,18 +158,26 @@ def fan_code():
             'batch_ids':        batch_ids,
         }
 
-        if TRANSFER_MODE == 'raw':
-            job_data_raw = struct.pack('<I{}{}'.format(len(batch_data), type_char), job_id, *batch_data)
-            to_workers.send(job_data_raw)
-        else:
+        if TRANSFER_MODE == 'numpy':
             job_data_struct = {
                 'job_id': job_id,
-                'batch_data': batch_data,
+                'batch_data': batch_vector_numpy,
             }
-            if TRANSFER_MODE == 'json':
-                to_workers.send_json(job_data_struct)
-            elif TRANSFER_MODE == 'pickle':
-                to_workers.send_pyobj(job_data_struct)
+            to_workers.send_pyobj(job_data_struct)
+        else:
+            batch_vector_array  = batch_vector_numpy.tolist()
+            if TRANSFER_MODE == 'raw':
+                job_data_raw = struct.pack('<I{}{}'.format(len(batch_vector_array), type_char), job_id, *batch_vector_array)
+                to_workers.send(job_data_raw)
+            else:
+                job_data_struct = {
+                    'job_id': job_id,
+                    'batch_data': batch_vector_array,
+                }
+                if TRANSFER_MODE == 'json':
+                    to_workers.send_json(job_data_struct)
+                elif TRANSFER_MODE == 'pickle':
+                    to_workers.send_pyobj(job_data_struct)
 
         print("[fan] -> job_id={} {}".format(job_id, batch_ids))
 
