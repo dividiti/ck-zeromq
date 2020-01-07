@@ -96,6 +96,8 @@ print('Model image channels: {}'.format(MODEL_IMAGE_CHANNELS))
 print('Model data type: {}'.format(MODEL_DATA_TYPE))
 print('Model BGR colours: {}'.format(MODEL_COLOURS_BGR))
 print('Model max_batch_size: {}'.format(max_batch_size))
+print('Image transfer mode: {}'.format(TRANSFER_MODE))
+print('Images transferred as floats: {}'.format(FP_MODE))
 print("")
 
 print("[worker {}] Ready to run inference on batches up to {} samples".format(WORKER_ID, max_batch_size))
