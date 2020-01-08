@@ -81,6 +81,7 @@
     "CK_FP_MODE": "NO",
     "CK_LOADGEN_BUFFER_SIZE": 8, 
     "CK_LOADGEN_CONF_FILE": "", 
+    "CK_LOADGEN_COUNT_OVERRIDE": "",
     "CK_LOADGEN_DATASET_SIZE": 20, 
     "CK_LOADGEN_MAX_DURATION_S": "",
     "CK_LOADGEN_MODE": "AccuracyOnly", 

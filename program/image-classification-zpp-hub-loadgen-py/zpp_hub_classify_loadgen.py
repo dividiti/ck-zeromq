@@ -49,6 +49,7 @@ LOADGEN_DATASET_SIZE        = int(os.getenv('CK_LOADGEN_DATASET_SIZE'))     # se
 LOADGEN_CONF_FILE           = os.getenv('CK_LOADGEN_CONF_FILE', '')
 LOADGEN_MULTISTREAMNESS     = os.getenv('CK_LOADGEN_MULTISTREAMNESS', '')   # if not set, use value from LoadGen's config file, or LoadGen code
 LOADGEN_MAX_DURATION_S      = os.getenv('CK_LOADGEN_MAX_DURATION_S', '')    # if not set, use value from LoadGen's config file, or LoadGen code
+LOADGEN_COUNT_OVERRIDE      = os.getenv('CK_LOADGEN_COUNT_OVERRIDE', '')
 BATCH_SIZE                  = int(os.getenv('CK_BATCH_SIZE', '1'))
 
 ## Model properties:
@@ -295,6 +296,10 @@ def benchmark_using_loadgen():
 
     if LOADGEN_MAX_DURATION_S:
         ts.max_duration_ms = int(LOADGEN_MAX_DURATION_S)*1000
+
+    if LOADGEN_COUNT_OVERRIDE:
+        ts.min_query_count = int(LOADGEN_COUNT_OVERRIDE)
+        ts.max_query_count = int(LOADGEN_COUNT_OVERRIDE)
 
     sut = lg.ConstructSUT(issue_queries, flush_queries, process_latencies)
     qsl = lg.ConstructQSL(LOADGEN_DATASET_SIZE, LOADGEN_BUFFER_SIZE, load_query_samples, unload_query_samples)
