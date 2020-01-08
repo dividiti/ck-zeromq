@@ -48,7 +48,7 @@ LOADGEN_BUFFER_SIZE         = int(os.getenv('CK_LOADGEN_BUFFER_SIZE'))      # se
 LOADGEN_DATASET_SIZE        = int(os.getenv('CK_LOADGEN_DATASET_SIZE'))     # set to how many total samples to choose from (0 = full set)
 LOADGEN_CONF_FILE           = os.getenv('CK_LOADGEN_CONF_FILE', '')
 LOADGEN_MULTISTREAMNESS     = os.getenv('CK_LOADGEN_MULTISTREAMNESS', '')   # if not set, use value from LoadGen's config file, or LoadGen code
-LOADGEN_TARGET_LATENCY_MS   = os.getenv('CK_LOADGEN_TARGET_LATENCY_MS', '') # if not set, use value from LoadGen's config file, or LoadGen code
+LOADGEN_MIN_DURATION_S      = os.getenv('CK_LOADGEN_MIN_DURATION_S', '')    # if not set, use value from LoadGen's config file, or LoadGen code
 BATCH_SIZE                  = int(os.getenv('CK_BATCH_SIZE', '1'))
 
 ## Model properties:
@@ -293,8 +293,8 @@ def benchmark_using_loadgen():
     if LOADGEN_MULTISTREAMNESS:
         ts.multi_stream_samples_per_query = int(LOADGEN_MULTISTREAMNESS)
 
-    if LOADGEN_TARGET_LATENCY_MS:
-        ts.multi_stream_target_latency_ns = int(LOADGEN_TARGET_LATENCY_MS)*1000000
+    if LOADGEN_MIN_DURATION_S:
+        ts.min_duration_ms = int(LOADGEN_MIN_DURATION_S)*1000
 
     sut = lg.ConstructSUT(issue_queries, flush_queries, process_latencies)
     qsl = lg.ConstructQSL(LOADGEN_DATASET_SIZE, LOADGEN_BUFFER_SIZE, load_query_samples, unload_query_samples)

@@ -82,10 +82,10 @@
     "CK_LOADGEN_BUFFER_SIZE": 8, 
     "CK_LOADGEN_CONF_FILE": "", 
     "CK_LOADGEN_DATASET_SIZE": 20, 
+    "CK_LOADGEN_MIN_DURATION_S": "",
     "CK_LOADGEN_MODE": "AccuracyOnly", 
     "CK_LOADGEN_MULTISTREAMNESS": "", 
     "CK_LOADGEN_SCENARIO": "SingleStream",
-    "CK_LOADGEN_TARGET_LATENCY_MS": "",
     "CK_ZMQ_TRANSFER_MODE": "json"
   }, 
   "tags": [
