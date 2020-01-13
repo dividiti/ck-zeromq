@@ -58,12 +58,12 @@
   "run_vars": {
     "CK_BATCH_COUNT": 1, 
     "CK_BATCH_SIZE": 1, 
-    "CK_FP_MODE": "NO",
+    "CK_FP_MODE": "YES",
     "CK_RESULTS_DIR": "predictions", 
     "CK_SILENT_MODE": 0,
     "CK_SKIP_IMAGES": 0,
     "CK_SLEEP_AFTER_SEND_MS": 0,
-    "CK_ZMQ_TRANSFER_MODE": "raw"
+    "CK_ZMQ_TRANSFER_MODE": "numpy"
   }, 
   "tags": [
     "image-classification", 
