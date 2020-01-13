@@ -52,6 +52,8 @@
     "CK_WORKER_ID": "",
     "CK_WORKER_JOB_LIMIT": 0,
     "CK_HUB_IP": "localhost",
+    "CK_ZMQ_FAN_PORT": 5557,
+    "CK_ZMQ_FUNNEL_PORT": 5558,
     "CK_ZMQ_TRANSFER_MODE": "numpy"
   }, 
   "tags": [

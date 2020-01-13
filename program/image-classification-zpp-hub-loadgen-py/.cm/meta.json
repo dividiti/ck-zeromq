@@ -87,6 +87,8 @@
     "CK_LOADGEN_MODE": "AccuracyOnly", 
     "CK_LOADGEN_MULTISTREAMNESS": "", 
     "CK_LOADGEN_SCENARIO": "SingleStream",
+    "CK_ZMQ_FAN_PORT": 5557,
+    "CK_ZMQ_FUNNEL_PORT": 5558,
     "CK_ZMQ_TRANSFER_MODE": "numpy"
   }, 
   "tags": [

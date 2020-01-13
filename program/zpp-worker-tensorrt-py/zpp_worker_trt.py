@@ -11,15 +11,21 @@ import pycuda.driver as cuda
 import pycuda.autoinit
 import pycuda.tools
 
-## General mode:
+## Transfer mode:
+#
 TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
 FP_MODE                 = os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
 
+## ZMQ ports:
+#
+ZMQ_FAN_PORT            = os.getenv('CK_ZMQ_FAN_PORT', 5557)
+ZMQ_FUNNEL_PORT         = os.getenv('CK_ZMQ_FUNNEL_PORT', 5558)
+
 ## Worker properties:
+#
 HUB_IP                  = os.getenv('CK_HUB_IP', 'localhost')
 JOBS_LIMIT              = int(os.getenv('CK_WORKER_JOB_LIMIT', 0))
 WORKER_ID               = os.getenv('CK_WORKER_ID') or os.getpid()
-
 
 ## Model properties:
 #
@@ -35,10 +41,10 @@ MODEL_SOFTMAX_LAYER     = os.getenv('CK_ENV_ONNX_MODEL_OUTPUT_LAYER_NAME', os.ge
 zmq_context = zmq.Context()
 
 from_factory = zmq_context.socket(zmq.PULL)
-from_factory.connect('tcp://{}:5557'.format(HUB_IP))
+from_factory.connect('tcp://{}:{}'.format(HUB_IP, ZMQ_FAN_PORT))
 
 to_funnel = zmq_context.socket(zmq.PUSH)
-to_funnel.connect('tcp://{}:5558'.format(HUB_IP))
+to_funnel.connect('tcp://{}:{}'.format(HUB_IP, ZMQ_FUNNEL_PORT))
 
 
 ## CUDA/TRT model setup:

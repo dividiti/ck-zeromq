@@ -11,22 +11,6 @@ import numpy as np
 import zmq
 import mlperf_loadgen as lg
 
-try:
-    raw_input
-except NameError:
-    # Python 3
-    raw_input = input
-
-zmq_context = zmq.Context()
-
-# Socket to send tasks on
-to_workers = zmq_context.socket(zmq.PUSH)
-to_workers.bind("tcp://*:5557")
-
-# Socket to receive results on
-from_workers = zmq_context.socket(zmq.PULL)
-from_workers.bind("tcp://*:5558")
-from_workers.RCVTIMEO = 2000
 
 ###########################################################################################################
 ## NB: if you run into "zmq.error.ZMQError: Address already in use" after a crash,
@@ -39,6 +23,11 @@ TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'json')
 FP_MODE                 = os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
 TRANSFER_TYPE_NP        = np.float32 if FP_MODE else np.int8
 TRANSFER_TYPE_CHAR      = 'f' if FP_MODE else 'b'
+
+## ZMQ ports:
+#
+ZMQ_FAN_PORT            = os.getenv('CK_ZMQ_FAN_PORT', 5557)
+ZMQ_FUNNEL_PORT         = os.getenv('CK_ZMQ_FUNNEL_PORT', 5558)
 
 ## LoadGen test properties:
 #
@@ -83,6 +72,18 @@ IMAGE_DATA_TYPE         = np.dtype( os.getenv('CK_ENV_DATASET_IMAGENET_PREPROCES
 ## Misc
 #
 VERBOSITY_LEVEL         = int(os.getenv('CK_VERBOSE', '0'))
+
+
+## ZeroMQ communication setup:
+#
+zmq_context = zmq.Context()
+
+to_workers = zmq_context.socket(zmq.PUSH)
+to_workers.bind("tcp://*:{}".format(ZMQ_FAN_PORT))
+
+from_workers = zmq_context.socket(zmq.PULL)
+from_workers.bind("tcp://*:{}".format(ZMQ_FUNNEL_PORT))
+from_workers.RCVTIMEO = 2000
 
 
 # Load preprocessed image filepaths:

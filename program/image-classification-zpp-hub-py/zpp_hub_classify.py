@@ -16,21 +16,18 @@ except NameError:
     # Python 3
     raw_input = input
 
-zmq_context = zmq.Context()
 
-# Socket to send tasks on
-to_workers = zmq_context.socket(zmq.PUSH)
-to_workers.bind("tcp://*:5557")
-
-# Socket to receive results on
-from_workers = zmq_context.socket(zmq.PULL)
-from_workers.bind("tcp://*:5558")
-
-## General mode:
+## Transfer mode:
+#
 TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
 FP_MODE                 = os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
 
 SLEEP_AFTER_SEND_MS     = int(os.getenv('CK_SLEEP_AFTER_SEND_MS', 0))
+
+## ZMQ ports:
+#
+ZMQ_FAN_PORT            = os.getenv('CK_ZMQ_FAN_PORT', 5557)
+ZMQ_FUNNEL_PORT         = os.getenv('CK_ZMQ_FUNNEL_PORT', 5558)
 
 ## Model properties:
 #
@@ -72,6 +69,17 @@ FULL_REPORT             = os.getenv('CK_SILENT_MODE', '0') in ('NO', 'no', 'OFF'
 #
 BATCH_SIZE              = int(os.getenv('CK_BATCH_SIZE', 1))
 BATCH_COUNT             = int(os.getenv('CK_BATCH_COUNT', 1))
+
+
+## ZeroMQ communication setup:
+#
+zmq_context = zmq.Context()
+
+to_workers = zmq_context.socket(zmq.PUSH)
+to_workers.bind("tcp://*:{}".format(ZMQ_FAN_PORT))
+
+from_workers = zmq_context.socket(zmq.PULL)
+from_workers.bind("tcp://*:{}".format(ZMQ_FUNNEL_PORT))
 
 
 def load_preprocessed_batch(image_list, image_index):
