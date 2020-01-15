@@ -40,7 +40,7 @@ LOADGEN_MULTISTREAMNESS     = os.getenv('CK_LOADGEN_MULTISTREAMNESS', '')   # if
 LOADGEN_MAX_DURATION_S      = os.getenv('CK_LOADGEN_MAX_DURATION_S', '')    # if not set, use value from LoadGen's config file, or LoadGen code
 LOADGEN_COUNT_OVERRIDE      = os.getenv('CK_LOADGEN_COUNT_OVERRIDE', '')
 BATCH_SIZE                  = int(os.getenv('CK_BATCH_SIZE', '1'))
-LOADGEN_WARM_UP_QUERIES     = int(os.getenv('CK_LOADGEN_WARM_UP_QUERIES', '0'))
+LOADGEN_WARM_UP_SAMPLES     = int(os.getenv('CK_LOADGEN_WARM_UP_SAMPLES', '0'))
 
 ## Model properties:
 #
@@ -321,18 +321,16 @@ def benchmark_using_loadgen():
     funnel_should_be_running = True
     funnel_thread.start()
 
-    if LOADGEN_WARM_UP_QUERIES:
-        warm_up_id_range = range(LOADGEN_WARM_UP_QUERIES)
+    if LOADGEN_WARM_UP_SAMPLES:
+        warm_up_id_range = list(range(LOADGEN_WARM_UP_SAMPLES))
         load_query_samples(warm_up_id_range)
 
         warm_up_mode = True
+        print("Sending out the warm-up samples, waiting for responses...")
+        issue_queries([lg.QuerySample(id,id) for id in warm_up_id_range])
 
-        issue_queries([lg.QuerySample(id,id)] for id in warm_up_id_range)
-
-        print("Sent out the warm-up samples, waiting for responses...")
-        while len(in_progress)>0:
+        while len(in_progress)>0:       # waiting for the in_progress queue to clear up
             time.sleep(1)
-            print('.', end='')
         print(" Done!")
 
         warm_up_mode = False
