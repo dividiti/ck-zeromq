@@ -216,11 +216,11 @@ def send_responses():
 
         job_id              = done_job['job_id']
         local_metadata      = in_progress.pop(job_id)
-        roundtrip_time_ms   = int((time.time()-local_metadata['submission_time'])*1000)
+        roundtrip_time_ms   = (time.time()-local_metadata['submission_time'])*1000
         worker_id           = done_job['worker_id']
         inference_time_ms   = done_job['inference_time_ms']
 
-        print("[funnel] <- [worker {}] job_id={}, inference={} ms, roundtrip={} ms".format(worker_id, job_id, inference_time_ms, roundtrip_time_ms))
+        print("[funnel] <- [worker {}] job_id={}, inference={:.2f} ms, roundtrip={:.2f} ms".format(worker_id, job_id, inference_time_ms, roundtrip_time_ms))
 
         if warm_up_mode:
             continue
@@ -267,7 +267,7 @@ def process_latencies(latencies_ns):
     print("--------------------------------------------------------------------")
     print("|                LATENCIES (in milliseconds and fps)               |")
     print("--------------------------------------------------------------------")
-    print("Number of queries run:       {:9d}".format(latencies_size))
+    print("Number of samples run:       {:9d}".format(latencies_size))
     print("Min latency:                 {:9.2f} ms   ({:.3f} fps)".format(latencies_sorted[0], 1e3/latencies_sorted[0]))
     print("Median latency:              {:9.2f} ms   ({:.3f} fps)".format(latencies_sorted[latencies_p50], 1e3/latencies_sorted[latencies_p50]))
     print("Average latency:             {:9.2f} ms   ({:.3f} fps)".format(latencies_avg, 1e3/latencies_avg))
