@@ -40,6 +40,7 @@ LOADGEN_MULTISTREAMNESS     = os.getenv('CK_LOADGEN_MULTISTREAMNESS', '')   # if
 LOADGEN_MAX_DURATION_S      = os.getenv('CK_LOADGEN_MAX_DURATION_S', '')    # if not set, use value from LoadGen's config file, or LoadGen code
 LOADGEN_COUNT_OVERRIDE      = os.getenv('CK_LOADGEN_COUNT_OVERRIDE', '')
 BATCH_SIZE                  = int(os.getenv('CK_BATCH_SIZE', '1'))
+LOADGEN_WARM_UP_QUERIES     = int(os.getenv('CK_LOADGEN_WARM_UP_QUERIES', '0'))
 
 ## Model properties:
 #
@@ -153,6 +154,7 @@ def unload_query_samples(sample_indices):
 
 in_progress  = {}                   # local store of metadata about batches between issue_queries and send_responses
 funnel_should_be_running = True     # a way for the fan to signal to the funnel_thread to end
+warm_up_mode             = False    # while on, QuerySampleResponses will not be sent to LoadGen
 
 def issue_queries(query_samples):
 
@@ -200,7 +202,7 @@ def issue_queries(query_samples):
 
 def send_responses():
 
-    global funnel_should_be_running
+    global funnel_should_be_running, warm_up_mode
 
     funnel_start = time.time()
     inference_times_ms_by_worker_id = {}
@@ -215,17 +217,22 @@ def send_responses():
         job_id              = done_job['job_id']
         local_metadata      = in_progress.pop(job_id)
         roundtrip_time_ms   = int((time.time()-local_metadata['submission_time'])*1000)
-        batch               = local_metadata['batch']
-        batch_size          = len(batch)
         worker_id           = done_job['worker_id']
         inference_time_ms   = done_job['inference_time_ms']
-        raw_batch_results   = np.array(done_job['raw_batch_results'])
-        batch_results       = np.split(raw_batch_results, batch_size)
+
+        print("[funnel] <- [worker {}] job_id={}, inference={} ms, roundtrip={} ms".format(worker_id, job_id, inference_time_ms, roundtrip_time_ms))
+
+        if warm_up_mode:
+            continue
 
         if worker_id not in inference_times_ms_by_worker_id:
             inference_times_ms_by_worker_id[worker_id] = []
         inference_times_ms_by_worker_id[worker_id].append( inference_time_ms )
-        print("[funnel] <- [worker {}] job_id={}, inference={} ms, roundtrip={} ms".format(worker_id, job_id, inference_time_ms, roundtrip_time_ms))
+
+        batch               = local_metadata['batch']
+        batch_size          = len(batch)
+        raw_batch_results   = np.array(done_job['raw_batch_results'])
+        batch_results       = np.split(raw_batch_results, batch_size)
 
         response = []
         response_array_refs = []    # This is needed to guarantee that the individual buffers to which we keep extra-Pythonian references, do not get garbage-collected.
@@ -273,7 +280,7 @@ def process_latencies(latencies_ns):
 def benchmark_using_loadgen():
     "Perform the benchmark using python API for the LoadGen library"
 
-    global funnel_should_be_running
+    global funnel_should_be_running, warm_up_mode
 
     scenario = {
         'SingleStream':     lg.TestScenario.SingleStream,
@@ -313,6 +320,22 @@ def benchmark_using_loadgen():
     funnel_thread = threading.Thread(target=send_responses, args=())
     funnel_should_be_running = True
     funnel_thread.start()
+
+    if LOADGEN_WARM_UP_QUERIES:
+        warm_up_id_range = range(LOADGEN_WARM_UP_QUERIES)
+        load_query_samples(warm_up_id_range)
+
+        warm_up_mode = True
+
+        issue_queries([lg.QuerySample(id,id)] for id in warm_up_id_range)
+
+        print("Sent out the warm-up samples, waiting for responses...")
+        while len(in_progress)>0:
+            time.sleep(1)
+            print('.', end='')
+        print(" Done!")
+
+        warm_up_mode = False
 
     lg.StartTestWithLogSettings(sut, qsl, ts, log_settings)
 
