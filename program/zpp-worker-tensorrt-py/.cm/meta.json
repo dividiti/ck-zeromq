@@ -54,7 +54,7 @@
     "CK_HUB_IP": "localhost",
     "CK_ZMQ_FAN_PORT": 5557,
     "CK_ZMQ_FUNNEL_PORT": 5558,
-    "ZMQ_POST_WORK_TIMEOUT_S": "",
+    "CK_ZMQ_POST_WORK_TIMEOUT_S": "",
     "CK_ZMQ_TRANSFER_MODE": "numpy"
   }, 
   "tags": [

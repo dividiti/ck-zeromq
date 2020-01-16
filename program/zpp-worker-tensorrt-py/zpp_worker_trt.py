@@ -141,9 +141,15 @@ with trt_engine.create_execution_context() as trt_context:
                 job_id      = job_data_struct['job_id']
                 batch_data  = job_data_struct['batch_data']
                 batch_size  = len(batch_data) // model_monopixels
-        except Exception as e:
-            print("Caught exception: {} , ExceptionType: {}".format(e, type(e)))
-            continue
+
+        except zmq.error.Again as e:    # ZeroMQ's timeout exception
+            if done_count==0:
+                print('.', end='', flush=True)
+                continue
+            else:
+                print("Having done {} inference cycles, leaving after a timeout of {} seconds".format(
+                                done_count, ZMQ_POST_WORK_TIMEOUT_S))
+                break
 
         if batch_size>max_batch_size:   # basic protection. FIXME: could report to hub, could split and still do inference...
             print("[worker {}] unable to perform inference on {}-sample batch. Skipping it.".format(WORKER_ID, batch_size))
