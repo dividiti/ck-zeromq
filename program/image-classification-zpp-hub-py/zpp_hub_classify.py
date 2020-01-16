@@ -214,19 +214,24 @@ def funnel_code():
     for _ in range(BATCH_COUNT):
         done_job = from_workers.recv_json()
 
-        local_metadata      = in_progress.pop(done_job['job_id'])
-        roundtrip_time_ms   = int((time.time()-local_metadata['submission_time'])*1000)
+        job_id              = done_job['job_id']
+        local_metadata      = in_progress.pop(job_id)
+        roundtrip_time_ms   = (time.time()-local_metadata['submission_time'])*1000
+        worker_id           = done_job['worker_id']
+        inference_time_ms   = done_job['inference_time_ms']
+        floatize_time_ms    = done_job['floatize_time_ms']
+
+        print("[funnel] <- [worker {}] job_id={}, to_float={:.2f} ms, inference={:.2f} ms, roundtrip={:.2f} ms".format(
+                            worker_id, job_id, floatize_time_ms, inference_time_ms, roundtrip_time_ms))
+
         batch_ids           = local_metadata['batch_ids']
         batch_size          = len(batch_ids)
         raw_batch_results   = np.array(done_job['raw_batch_results'])
         batch_results       = np.split(raw_batch_results, batch_size)
-        worker_id           = done_job['worker_id']
-        inference_time_ms   = done_job['inference_time_ms']
-        floatize_time_ms    = done_job['floatize_time_ms']
+
         if worker_id not in inference_times_ms_by_worker_id:
             inference_times_ms_by_worker_id[worker_id] = []
         inference_times_ms_by_worker_id[worker_id].append( inference_time_ms )
-        print("[funnel] <- [worker {}] {}, to_float={} ms, inference={} ms, roundtrip={} ms".format(worker_id, batch_ids, floatize_time_ms, inference_time_ms, roundtrip_time_ms))
 
         for sample_id, softmax_vector in zip(batch_ids, batch_results):
             trimmed_softmax_vector = softmax_vector[-1000:]    # skipping the background class on the left (if present)
