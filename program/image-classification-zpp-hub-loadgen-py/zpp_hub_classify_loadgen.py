@@ -219,8 +219,10 @@ def send_responses():
         roundtrip_time_ms   = (time.time()-local_metadata['submission_time'])*1000
         worker_id           = done_job['worker_id']
         inference_time_ms   = done_job['inference_time_ms']
+        floatize_time_ms    = done_job['floatize_time_ms']
 
-        print("[funnel] <- [worker {}] job_id={}, inference={:.2f} ms, roundtrip={:.2f} ms".format(worker_id, job_id, inference_time_ms, roundtrip_time_ms))
+        print("[funnel] <- [worker {}] job_id={}, worker_type_conversion={:.2f} ms, inference={:.2f} ms, roundtrip={:.2f} ms".format(
+                            worker_id, job_id, floatize_time_ms, inference_time_ms, roundtrip_time_ms))
 
         if warm_up_mode:
             continue
