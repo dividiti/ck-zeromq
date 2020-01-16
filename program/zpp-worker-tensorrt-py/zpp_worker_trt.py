@@ -20,6 +20,7 @@ FP_MODE                 = os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 
 #
 ZMQ_FAN_PORT            = os.getenv('CK_ZMQ_FAN_PORT', 5557)
 ZMQ_FUNNEL_PORT         = os.getenv('CK_ZMQ_FUNNEL_PORT', 5558)
+ZMQ_POST_WORK_TIMEOUT_S = os.getenv('CK_ZMQ_POST_WORK_TIMEOUT_S', '')   # empty string means no timeout
 
 ## Worker properties:
 #
@@ -42,6 +43,8 @@ zmq_context = zmq.Context()
 
 from_factory = zmq_context.socket(zmq.PULL)
 from_factory.connect('tcp://{}:{}'.format(HUB_IP, ZMQ_FAN_PORT))
+if ZMQ_POST_WORK_TIMEOUT_S != '':
+    from_factory.RCVTIMEO = int(ZMQ_POST_WORK_TIMEOUT_S)*1000   # expects milliseconds
 
 to_funnel = zmq_context.socket(zmq.PUSH)
 to_funnel.connect('tcp://{}:{}'.format(HUB_IP, ZMQ_FUNNEL_PORT))
@@ -116,27 +119,31 @@ with trt_engine.create_execution_context() as trt_context:
     total_inference_time = 0
     while JOBS_LIMIT<1 or done_count < JOBS_LIMIT:
 
-        if TRANSFER_MODE == 'dummy':
-            job_data_raw        = from_factory.recv()
-            job_id, batch_size  = struct.unpack('ii', job_data_raw )
-        elif TRANSFER_MODE == 'raw':
-            job_data_raw  = from_factory.recv()
-            if FP_MODE:
-                job_id      = struct.unpack('i', job_data_raw[:4] )[0]
-                batch_size  = (len(job_data_raw)-4) // 4 // model_monopixels
+        try:
+            if TRANSFER_MODE == 'dummy':
+                job_data_raw        = from_factory.recv()
+                job_id, batch_size  = struct.unpack('ii', job_data_raw )
+            elif TRANSFER_MODE == 'raw':
+                job_data_raw  = from_factory.recv()
+                if FP_MODE:
+                    job_id      = struct.unpack('i', job_data_raw[:4] )[0]
+                    batch_size  = (len(job_data_raw)-4) // 4 // model_monopixels
+                else:
+                    batch_data  = list( struct.unpack('i{}b'.format(len(job_data_raw)-4), job_data_raw) )
+                    job_id      = batch_data.pop(0)
+                    batch_size  = len(batch_data) // model_monopixels
             else:
-                batch_data  = list( struct.unpack('i{}b'.format(len(job_data_raw)-4), job_data_raw) )
-                job_id      = batch_data.pop(0)
-                batch_size  = len(batch_data) // model_monopixels
-        else:
-            if TRANSFER_MODE == 'json':
-                job_data_struct    = from_factory.recv_json()
-            elif TRANSFER_MODE in ('pickle', 'numpy'):
-                job_data_struct    = from_factory.recv_pyobj()
+                if TRANSFER_MODE == 'json':
+                    job_data_struct    = from_factory.recv_json()
+                elif TRANSFER_MODE in ('pickle', 'numpy'):
+                    job_data_struct    = from_factory.recv_pyobj()
 
-            job_id      = job_data_struct['job_id']
-            batch_data  = job_data_struct['batch_data']
-            batch_size  = len(batch_data) // model_monopixels
+                job_id      = job_data_struct['job_id']
+                batch_data  = job_data_struct['batch_data']
+                batch_size  = len(batch_data) // model_monopixels
+        except Exception as e:
+            print("Caught exception: {} , ExceptionType: {}".format(e, type(e)))
+            continue
 
         if batch_size>max_batch_size:   # basic protection. FIXME: could report to hub, could split and still do inference...
             print("[worker {}] unable to perform inference on {}-sample batch. Skipping it.".format(WORKER_ID, batch_size))
