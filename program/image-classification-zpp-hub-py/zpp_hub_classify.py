@@ -21,6 +21,8 @@ except NameError:
 #
 TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
 FP_MODE                 = os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
+TRANSFER_TYPE_NP        = np.float32 if FP_MODE else np.int8
+TRANSFER_TYPE_CHAR      = 'f' if FP_MODE else 'b'
 
 SLEEP_AFTER_SEND_MS     = int(os.getenv('CK_SLEEP_AFTER_SEND_MS', 0))
 
@@ -109,7 +111,7 @@ def load_preprocessed_batch(image_list, image_index):
         batch_data.append( [img] )
         image_index += 1
 
-    nhwc_data = np.concatenate(batch_data, axis=0)
+    nhwc_data = np.concatenate(batch_data, axis=0).astype(TRANSFER_TYPE_NP)
 
     if MODEL_DATA_LAYOUT == 'NHWC':
         #print(nhwc_data.shape)
@@ -149,12 +151,6 @@ def fan_code():
 
         batch_first_index = image_index
         batch_data, image_index = load_preprocessed_batch(image_list, image_index)
-        if FP_MODE:
-            batch_data  = batch_data.astype('float32')
-            type_char   = 'f'
-        else:
-            batch_data  = batch_data.astype('int8')
-            type_char   = 'b'
 
         batch_vector_numpy  = batch_data.ravel()
 
@@ -178,7 +174,7 @@ def fan_code():
         else:
             batch_vector_array  = batch_vector_numpy.tolist()
             if TRANSFER_MODE == 'raw':
-                job_data_raw = struct.pack('<I{}{}'.format(len(batch_vector_array), type_char), job_id, *batch_vector_array)
+                job_data_raw = struct.pack('<I{}{}'.format(len(batch_vector_array), TRANSFER_TYPE_CHAR), job_id, *batch_vector_array)
                 to_workers.send(job_data_raw)
             else:
                 job_data_struct = {
