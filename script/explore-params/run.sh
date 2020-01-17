@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Launching Masha ..."
+echo "Masha experiment:"
 
 # Timestamp.
 timestamp=$(date +%Y%m%d-%H%M%S)
@@ -26,21 +26,29 @@ echo "- count: ${count}"
 
 # count_per_copro=$(( ${count} / ${num_ids} ))
 
+# Multistreamness.
+multistreamness=${CK_LOADGEN_MULTISTREAMNESS:-1}
+echo "- multistreamness: ${multistreamness}"
+
+# Batch size.
+batch_size=${CK_BATCH_SIZE:-1}
+echo "- batch size: ${batch_size}"
+
 # Transfer mode: raw, json, pickle, numpy.
 transfer_mode=${CK_ZMQ_TRANSFER_MODE:-numpy}
 echo "- transfer mode: ${transfer_mode}"
 
 # FP mode: NO, YES.
 fp_mode=${CK_ZMQ_FP_MODE:-YES}
-echo "- FP mode: ${fp_mode}"
-
-# Batch size.
-batch_size=${CK_BATCH_SIZE:-1}
-echo "- batch size: ${batch_size}"
-
-# Multistreamness.
-multistreamness=${CK_LOADGEN_MULTISTREAMNESS:-1}
-echo "- multistreamness: ${multistreamness}"
+if [ "${fp_mode}" = "YES" ]; then
+  fp_mode_tag="yes"
+elif [ "${fp_mode}" = "NO" ]; then
+  fp_mode_tag="no"
+else
+  echo "ERROR: Unsupported FP mode '${fp_mode}'!"
+  exit 1
+fi
+echo "- FP mode: ${fp_mode} (${fp_mode_tag})"
 
 # Number of samples to discard when warming up:
 # by default, use as many as the number of co-processors.
@@ -82,8 +90,8 @@ fi
 echo
 
 # Prepare record UOA and tags.
-record_uoa="masha.${timestamp}.scenario-${scenario_tag}.mode-${mode_tag}.count-${count}.multistreamness-${multistreamness}.batch-${batch_size}"
-record_tags="masha,${timestamp},scenario-${scenario_tag},mode-${mode_tag},count-${count},multistreamness-${multistreamness},batch-${batch_size}"
+record_uoa="masha.${timestamp}.scenario-${scenario_tag}.mode-${mode_tag}.count-${count}.multistreamness-${multistreamness}.batch-${batch_size}.transfer-${transfer_mode}.fp-${fp_mode_tag}"
+record_tags="masha,${timestamp},scenario-${scenario_tag},mode-${mode_tag},count-${count},multistreamness-${multistreamness},batch-${batch_size},transfer-${transfer_mode},fp-${fp_mode_tag}"
 
 # Launch Masha's workers.
 for id in ${ids[@]}; do
