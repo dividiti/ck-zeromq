@@ -7,7 +7,7 @@ timestamp=$(date +%Y%m%d-%H%M%S)
 echo "- timestamp: ${timestamp}"
 
 # Hub IP.
-hub_ip=${CK_HUB_IP:-"192.168.1.101"}
+hub_ip=${CK_HUB_IP:-"192.168.1.102"}
 echo "- hub IP: ${hub_ip}"
 
 # Use parentheses to interpret the string as an array.
@@ -141,7 +141,7 @@ eval ${CMD}
 echo
 
 # Show the summary table.
-tail -n 12 "`ck find program:image-classification-zpp-hub-loadgen-py`/tmp/mlperf_log_summary.txt"
+head -n 12 "`ck find program:image-classification-zpp-hub-loadgen-py`/tmp/mlperf_log_summary.txt"
 echo
 
 echo "Done."

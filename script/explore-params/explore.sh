@@ -20,7 +20,7 @@ experiment_id=1
 for ids in "${list_of_ids[@]}"; do
     for multistreamness in "${multistreamnesses[@]}"; do
         for batch_size in "${batch_sizes[@]}"; do
-            for transer_mode in "${transfer_modes[@]}"; do
+            for transfer_mode in "${transfer_modes[@]}"; do
                 for fp_mode in "${fp_modes[@]}"; do
                     echo "[`date`] Experiment #${experiment_id}: ..."
                     experiment_id=$((${experiment_id}+1))
@@ -29,7 +29,7 @@ for ids in "${list_of_ids[@]}"; do
                     CK_WORKER_IDS="${ids}" \
                     CK_LOADGEN_MULTISTREAMNESS="${multistreamness}" \
                     CK_BATCH_SIZE="${batch_size}" \
-                    CK_ZMQ_TRANSER_MODE="${transer_mode}" \
+                    CK_ZMQ_TRANSFER_MODE="${transfer_mode}" \
                     CK_ZMQ_FP_MODE="${fp_mode}" \
                     ./run.sh
 END_OF_CMD
