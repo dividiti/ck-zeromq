@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import array
+import json
 import os
 import struct
 import sys
@@ -41,6 +42,7 @@ LOADGEN_MAX_DURATION_S      = os.getenv('CK_LOADGEN_MAX_DURATION_S', '')    # if
 LOADGEN_COUNT_OVERRIDE      = os.getenv('CK_LOADGEN_COUNT_OVERRIDE', '')
 BATCH_SIZE                  = int(os.getenv('CK_BATCH_SIZE', '1'))
 LOADGEN_WARM_UP_SAMPLES     = int(os.getenv('CK_LOADGEN_WARM_UP_SAMPLES', '0'))
+SIDELOAD_JSON               = os.getenv('CK_LOADGEN_SIDELOAD_JSON','')
 
 ## Model properties:
 #
@@ -152,6 +154,7 @@ def unload_query_samples(sample_indices):
     print('')
 
 
+openme_data  = {}                   # side-loaded stats
 in_progress  = {}                   # local store of metadata about batches between issue_queries and send_responses
 funnel_should_be_running = True     # a way for the fan to signal to the funnel_thread to end
 warm_up_mode             = False    # while on, QuerySampleResponses will not be sent to LoadGen
@@ -202,9 +205,11 @@ def issue_queries(query_samples):
 
 def send_responses():
 
-    global funnel_should_be_running, warm_up_mode
+    global funnel_should_be_running, warm_up_mode, openme_data
 
     funnel_start = time.time()
+
+    received_job_timings = openme_data['received_job_timings'] = []
     inference_times_ms_by_worker_id = {}
 
     while funnel_should_be_running:
@@ -216,13 +221,23 @@ def send_responses():
 
         job_id              = done_job['job_id']
         local_metadata      = in_progress.pop(job_id)
-        roundtrip_time_ms   = (time.time()-local_metadata['submission_time'])*1000
+        received_timestamp  = time.time()
+        roundtrip_time_ms   = (received_timestamp-local_metadata['submission_time'])*1000
         worker_id           = done_job['worker_id']
         inference_time_ms   = done_job['inference_time_ms']
         floatize_time_ms    = done_job['floatize_time_ms']
 
         print("[funnel] <- [worker {}] job_id={}, worker_type_conversion={:.2f} ms, inference={:.2f} ms, roundtrip={:.2f} ms".format(
                             worker_id, job_id, floatize_time_ms, inference_time_ms, roundtrip_time_ms))
+
+        received_job_timings.append({
+            'job_id':                   job_id,
+            'worker_id':                worker_id,
+            'received_timestamp':       received_timestamp,
+            'worker_floatize_time_ms':  floatize_time_ms,
+            'inference_time_ms':        inference_time_ms,
+            'roundtrip_time_ms':        roundtrip_time_ms,
+        })
 
         if warm_up_mode:
             continue
@@ -256,7 +271,10 @@ def flush_queries():
 
 
 def process_latencies(latencies_ns):
-    latencies_ms = [ns/1.0e6 for ns in latencies_ns]
+
+    global openme_data
+
+    latencies_ms = openme_data['loadgen_measured_latencies_ms'] = [ns/1.0e6 for ns in latencies_ns]
     print("LG called process_latencies({})".format(latencies_ms))
 
     latencies_size      = len(latencies_ms)
@@ -282,7 +300,7 @@ def process_latencies(latencies_ns):
 def benchmark_using_loadgen():
     "Perform the benchmark using python API for the LoadGen library"
 
-    global funnel_should_be_running, warm_up_mode
+    global funnel_should_be_running, warm_up_mode, openme_data
 
     scenario = {
         'SingleStream':     lg.TestScenario.SingleStream,
@@ -347,6 +365,10 @@ def benchmark_using_loadgen():
 
     lg.DestroyQSL(qsl)
     lg.DestroySUT(sut)
+
+    if SIDELOAD_JSON:
+        with open(SIDELOAD_JSON, 'w') as sideload_fd:
+            json.dump(openme_data, sideload_fd, indent=4, sort_keys=True)
 
 
 benchmark_using_loadgen()
