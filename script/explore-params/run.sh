@@ -90,8 +90,8 @@ fi
 echo
 
 # Prepare record UOA and tags.
-record_uoa="masha.${timestamp}.scenario-${scenario_tag}.mode-${mode_tag}.count-${count}.multistreamness-${multistreamness}.batch-${batch_size}.transfer-${transfer_mode}.fp-${fp_mode_tag}"
-record_tags="masha,${timestamp},scenario-${scenario_tag},mode-${mode_tag},count-${count},multistreamness-${multistreamness},batch-${batch_size},transfer-${transfer_mode},fp-${fp_mode_tag}"
+record_uoa="masha.${timestamp}.scenario-${scenario_tag}.mode-${mode_tag}.count-${count}.multistreamness-${multistreamness}.batch-${batch_size}.transfer-${transfer_mode}.fp-${fp_mode_tag}.workers-${num_ids}"
+record_tags="masha,${timestamp},scenario-${scenario_tag},mode-${mode_tag},count-${count},multistreamness-${multistreamness},batch-${batch_size},transfer-${transfer_mode},fp-${fp_mode_tag},workers-${num_ids}"
 
 # Launch Masha's workers.
 for id in ${ids[@]}; do
