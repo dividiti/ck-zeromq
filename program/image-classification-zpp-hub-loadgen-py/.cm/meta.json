@@ -1,5 +1,6 @@
 {
   "backup_data_uid": "c4a80957e3ae1c8f", 
+  "pass_env_to_resolve": "yes",
   "build_compiler_vars": {}, 
   "data_name": "image-classification-zpp-hub-loadgen-py", 
   "main_language": "python", 
@@ -36,6 +37,16 @@
       "sort": 20, 
       "tags": "dataset,imagenet,preprocessed"
     }, 
+    "loadgen-config-file": {
+      "enable_if_env": [
+        { "CK_LOADGEN_USE_CONFIG_ENV": ["yes", "Yes", "YES", "on", "On", "ON", "true", "True", "TRUE", "1"] }
+      ],
+      "add_to_path": "no",
+      "local": "yes",
+      "name": "LoadGen Config file",
+      "sort": 35,
+      "tags": "loadgen,config"
+    },
     "lib-python-loadgen": {
       "local": "yes", 
       "name": "Python LoadGen library", 
@@ -80,7 +91,6 @@
     "CK_BATCH_SIZE": 1, 
     "CK_FP_MODE": "YES",
     "CK_LOADGEN_BUFFER_SIZE": 8, 
-    "CK_LOADGEN_CONF_FILE": "", 
     "CK_LOADGEN_COUNT_OVERRIDE": "",
     "CK_LOADGEN_DATASET_SIZE": 20, 
     "CK_LOADGEN_MAX_DURATION_S": "",
@@ -89,6 +99,7 @@
     "CK_LOADGEN_SCENARIO": "SingleStream",
     "CK_LOADGEN_WARM_UP_SAMPLES": 0,
     "CK_LOADGEN_SIDELOAD_JSON": "non-mlperf_sideload.json",
+    "CK_LOADGEN_USE_CONFIG_ENV": "no",
     "CK_ZMQ_FAN_PORT": 5557,
     "CK_ZMQ_FUNNEL_PORT": 5558,
     "CK_ZMQ_TRANSFER_MODE": "numpy"
