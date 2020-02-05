@@ -50,8 +50,14 @@ MODEL_PATH              = os.environ['CK_ENV_TENSORRT_MODEL_FILENAME']
 MODEL_DATA_LAYOUT       = os.getenv('ML_MODEL_DATA_LAYOUT', 'NCHW')
 LABELS_PATH             = os.environ['CK_CAFFE_IMAGENET_SYNSET_WORDS_TXT']
 MODEL_COLOURS_BGR       = os.getenv('ML_MODEL_COLOUR_CHANNELS_BGR', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
-MODEL_IMAGE_HEIGHT      = int(os.getenv('CK_ENV_ONNX_MODEL_IMAGE_HEIGHT', os.getenv('CK_ENV_TENSORFLOW_MODEL_IMAGE_HEIGHT', '')))
-MODEL_IMAGE_WIDTH       = int(os.getenv('CK_ENV_ONNX_MODEL_IMAGE_WIDTH', os.getenv('CK_ENV_TENSORFLOW_MODEL_IMAGE_WIDTH', '')))
+MODEL_IMAGE_HEIGHT      = int(os.getenv('ML_MODEL_MODEL_IMAGE_HEIGHT',
+                              os.getenv('CK_ENV_ONNX_MODEL_IMAGE_HEIGHT',
+                              os.getenv('CK_ENV_TENSORFLOW_MODEL_IMAGE_HEIGHT',
+                              ''))))
+MODEL_IMAGE_WIDTH       = int(os.getenv('ML_MODEL_MODEL_IMAGE_WIDTH',
+                              os.getenv('CK_ENV_ONNX_MODEL_IMAGE_WIDTH',
+                              os.getenv('CK_ENV_TENSORFLOW_MODEL_IMAGE_WIDTH',
+                              ''))))
 MODEL_IMAGE_CHANNELS    = 3
 MODEL_SOFTMAX_LAYER     = os.getenv('CK_ENV_ONNX_MODEL_OUTPUT_LAYER_NAME', os.getenv('CK_ENV_TENSORFLOW_MODEL_OUTPUT_LAYER_NAME', ''))
 
