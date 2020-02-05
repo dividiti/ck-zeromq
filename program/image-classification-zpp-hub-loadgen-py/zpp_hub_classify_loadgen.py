@@ -18,12 +18,6 @@ import mlperf_loadgen as lg
 ##     run "sudo netstat -ltnp | grep python" and kill the socket-hogging process.
 ###########################################################################################################
 
-## Data transfer:
-#
-TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'json')
-FP_MODE                 = os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
-TRANSFER_TYPE_NP        = np.float32 if FP_MODE else np.int8
-TRANSFER_TYPE_CHAR      = 'f' if FP_MODE else 'b'
 
 ## ZMQ ports:
 #
@@ -50,6 +44,7 @@ MODEL_PATH              = os.environ['CK_ENV_TENSORRT_MODEL_FILENAME']
 MODEL_DATA_LAYOUT       = os.getenv('ML_MODEL_DATA_LAYOUT', 'NCHW')
 LABELS_PATH             = os.environ['CK_CAFFE_IMAGENET_SYNSET_WORDS_TXT']
 MODEL_COLOURS_BGR       = os.getenv('ML_MODEL_COLOUR_CHANNELS_BGR', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
+MODEL_DATA_TYPE         = os.getenv('ML_MODEL_DATA_TYPE', 'float32')
 MODEL_IMAGE_HEIGHT      = int(os.getenv('ML_MODEL_MODEL_IMAGE_HEIGHT',
                               os.getenv('CK_ENV_ONNX_MODEL_IMAGE_HEIGHT',
                               os.getenv('CK_ENV_TENSORFLOW_MODEL_IMAGE_HEIGHT',
@@ -62,13 +57,24 @@ MODEL_IMAGE_CHANNELS    = 3
 MODEL_SOFTMAX_LAYER     = os.getenv('CK_ENV_ONNX_MODEL_OUTPUT_LAYER_NAME', os.getenv('CK_ENV_TENSORFLOW_MODEL_OUTPUT_LAYER_NAME', ''))
 
 
+## Data transfer:
+#
+TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'json')
+FP_MODE                 = os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
+TRANSFER_TYPE_NP, TRANSFER_TYPE_CHAR = (np.float32, 'f') if FP_MODE else (np.int8, 'b')
+
+
+## Internal processing:
+#
+VECTOR_DATA_TYPE        = np.float32
+
 ## Image normalization:
 #
 MODEL_NORMALIZE_DATA    = os.getenv('ML_MODEL_NORMALIZE_DATA') in ('YES', 'yes', 'ON', 'on', '1')
 SUBTRACT_MEAN           = os.getenv('ML_MODEL_SUBTRACT_MEAN', 'YES') in ('YES', 'yes', 'ON', 'on', '1')
 GIVEN_CHANNEL_MEANS     = os.getenv('ML_MODEL_GIVEN_CHANNEL_MEANS', '')
 if GIVEN_CHANNEL_MEANS:
-    GIVEN_CHANNEL_MEANS = np.array(GIVEN_CHANNEL_MEANS.split(' '), dtype=np.float32)
+    GIVEN_CHANNEL_MEANS = np.array(GIVEN_CHANNEL_MEANS.split(' '), dtype=VECTOR_DATA_TYPE)
     if MODEL_COLOURS_BGR:
         GIVEN_CHANNEL_MEANS = GIVEN_CHANNEL_MEANS[::-1]     # swapping Red and Blue colour channels
 
@@ -133,7 +139,7 @@ def load_query_samples(sample_indices):     # 0-based indices in our whole datas
             img = img[...,::-1]     # swapping Red and Blue colour channels
 
         if IMAGE_DATA_TYPE != 'float32':
-            img = img.astype(np.float32)
+            img = img.astype(VECTOR_DATA_TYPE)
 
             # Normalize
             if MODEL_NORMALIZE_DATA:
@@ -144,7 +150,10 @@ def load_query_samples(sample_indices):     # 0-based indices in our whole datas
                 if len(GIVEN_CHANNEL_MEANS):
                     img -= GIVEN_CHANNEL_MEANS
                 else:
-                    img -= np.mean(img)
+                    img -= np.mean(img, axis=(0,1), keepdims=True)
+
+        if MODEL_DATA_TYPE == 'int8':
+            img = np.clip(img, -128, 127)
 
         nhwc_img = img if MODEL_DATA_LAYOUT == 'NHWC' else img.transpose(2,0,1)
 
