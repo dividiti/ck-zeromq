@@ -11,10 +11,6 @@ import pycuda.driver as cuda
 import pycuda.autoinit
 import pycuda.tools
 
-## Transfer mode:
-#
-TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
-FP_MODE                 = os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
 
 ## ZMQ ports:
 #
@@ -35,6 +31,12 @@ MODEL_DATA_LAYOUT       = os.getenv('ML_MODEL_DATA_LAYOUT', 'NCHW')
 MODEL_COLOURS_BGR       = os.getenv('ML_MODEL_COLOUR_CHANNELS_BGR', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
 MODEL_DATA_TYPE         = os.getenv('ML_MODEL_DATA_TYPE', 'float32')
 MODEL_SOFTMAX_LAYER     = os.getenv('CK_ENV_ONNX_MODEL_OUTPUT_LAYER_NAME', os.getenv('CK_ENV_TENSORFLOW_MODEL_OUTPUT_LAYER_NAME', ''))
+
+## Transfer mode:
+#
+TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
+FP_MODE                 = (os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')) and (MODEL_DATA_TYPE == 'float32')
+CONVERT_TO_TYPE_CHAR    = 'f' if FP_MODE else 'b'
 
 
 ## ZeroMQ communication setup:
@@ -165,7 +167,7 @@ with trt_engine.create_execution_context() as trt_context:
             float_batch = batch_data
         else:
             #float_batch = np.array(batch_data, dtype=np.float32)
-            float_batch = struct.pack("{}f".format(len(batch_data)), *batch_data) # almost twice as fast!
+            float_batch = struct.pack("{}{}".format(len(batch_data), CONVERT_TO_TYPE_CHAR), *batch_data) # almost twice as fast!
 
         inference_start = time.time()
 
@@ -179,12 +181,24 @@ with trt_engine.create_execution_context() as trt_context:
         inference_time_ms   = (time.time() - inference_start)*1000
         floatize_time_ms    = (inference_start-floatize_start)*1000
 
+        if TRANSFER_MODE == 'dummy':        # no inference - fake the batch results
+            softmax_merged = [ 0 ]*1001*batch_size
+        else:
+            batch_results = h_output[:model_classes*batch_size].tolist()
+
+            if model_classes == 1:          # inference produces argmax - fake the softmax by padding with 1000 zeros (1001 overall)
+                softmax_merged = []
+                for arg_max in batch_results:
+                    softmax_merged.extend( [0]*(arg_max +1) + [1] + [0]*(1000-arg_max-1) )
+            else:
+                softmax_merged = batch_results
+
         response = {
             'job_id': job_id,
             'worker_id': WORKER_ID,
             'floatize_time_ms': floatize_time_ms,
             'inference_time_ms': inference_time_ms,
-            'raw_batch_results': [ 0 ]*1001*batch_size if TRANSFER_MODE == 'dummy' else h_output[:model_classes*batch_size].tolist(),
+            'raw_batch_results': softmax_merged,
         }
 
         to_funnel.send_json(response)

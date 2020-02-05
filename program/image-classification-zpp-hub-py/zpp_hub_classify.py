@@ -17,20 +17,6 @@ except NameError:
     raw_input = input
 
 
-## Transfer mode:
-#
-TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
-FP_MODE                 = os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
-TRANSFER_TYPE_NP        = np.float32 if FP_MODE else np.int8
-TRANSFER_TYPE_CHAR      = 'f' if FP_MODE else 'b'
-
-SLEEP_AFTER_SEND_MS     = int(os.getenv('CK_SLEEP_AFTER_SEND_MS', 0))
-
-## ZMQ ports:
-#
-ZMQ_FAN_PORT            = os.getenv('CK_ZMQ_FAN_PORT', 5557)
-ZMQ_FUNNEL_PORT         = os.getenv('CK_ZMQ_FUNNEL_PORT', 5558)
-
 ## Model properties:
 #
 MODEL_PATH              = os.environ['CK_ENV_TENSORRT_MODEL_FILENAME']
@@ -40,6 +26,20 @@ MODEL_DATA_TYPE         = os.getenv('ML_MODEL_DATA_TYPE', 'float32')
 MODEL_SOFTMAX_LAYER     = os.getenv('CK_ENV_ONNX_MODEL_OUTPUT_LAYER_NAME', os.getenv('CK_ENV_TENSORFLOW_MODEL_OUTPUT_LAYER_NAME', ''))
 MODEL_IMAGE_HEIGHT      = int(os.getenv('CK_ENV_ONNX_MODEL_IMAGE_HEIGHT', os.getenv('CK_ENV_TENSORFLOW_MODEL_IMAGE_HEIGHT', '')))
 MODEL_IMAGE_WIDTH       = int(os.getenv('CK_ENV_ONNX_MODEL_IMAGE_WIDTH', os.getenv('CK_ENV_TENSORFLOW_MODEL_IMAGE_WIDTH', '')))
+
+
+## Transfer mode:
+#
+TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
+FP_MODE                 = (os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')) and (MODEL_DATA_TYPE == 'float32')
+TRANSFER_TYPE_NP, TRANSFER_TYPE_CHAR = (np.float32, 'f') if FP_MODE else (np.int8, 'b')
+
+SLEEP_AFTER_SEND_MS     = int(os.getenv('CK_SLEEP_AFTER_SEND_MS', 0))
+
+## ZMQ ports:
+#
+ZMQ_FAN_PORT            = os.getenv('CK_ZMQ_FAN_PORT', 5557)
+ZMQ_FUNNEL_PORT         = os.getenv('CK_ZMQ_FUNNEL_PORT', 5558)
 
 
 ## Internal processing:
@@ -93,7 +93,7 @@ def load_preprocessed_batch(image_list, image_index):
         if MODEL_COLOURS_BGR:
             img = img[...,::-1]     # swapping Red and Blue colour channels
 
-        if IMAGE_DATA_TYPE == 'uint8':
+        if IMAGE_DATA_TYPE != 'float32':
             img = img.astype(VECTOR_DATA_TYPE)
 
             # Normalize
@@ -107,11 +107,14 @@ def load_preprocessed_batch(image_list, image_index):
                 else:
                     img -= np.mean(img, axis=(0,1), keepdims=True)
 
+        if MODEL_DATA_TYPE == 'int8':
+            img = np.clip(img, -128, 127)
+
         # Add img to batch
-        batch_data.append( [img] )
+        batch_data.append( [img.astype(TRANSFER_TYPE_NP)] )
         image_index += 1
 
-    nhwc_data = np.concatenate(batch_data, axis=0).astype(TRANSFER_TYPE_NP)
+    nhwc_data = np.concatenate(batch_data, axis=0)
 
     if MODEL_DATA_LAYOUT == 'NHWC':
         #print(nhwc_data.shape)
