@@ -35,8 +35,8 @@ MODEL_SOFTMAX_LAYER     = os.getenv('CK_ENV_ONNX_MODEL_OUTPUT_LAYER_NAME', os.ge
 ## Transfer mode:
 #
 TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
-FP_MODE                 = (os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')) and (MODEL_DATA_TYPE == 'float32')
-CONVERT_TO_TYPE_CHAR    = 'f' if FP_MODE else 'b'
+NO_CONVERSION_NEEDED    = (os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')) # new meaning: data arrives pre-converted to MODEL_DATA_TYPE
+CONVERT_TO_TYPE_CHAR    = 'f' if (MODEL_DATA_TYPE == 'float32') else 'b'
 
 
 ## ZeroMQ communication setup:
@@ -108,7 +108,7 @@ print('Model data type: {}'.format(MODEL_DATA_TYPE))
 print('Model BGR colours: {}'.format(MODEL_COLOURS_BGR))
 print('Model max_batch_size: {}'.format(max_batch_size))
 print('Image transfer mode: {}'.format(TRANSFER_MODE))
-print('Images transferred as floats: {}'.format(FP_MODE))
+print('Images transferred pre-converted to the input data type of the model: {}'.format(NO_CONVERSION_NEEDED))
 print("")
 
 print("[worker {}] Ready to run inference on batches up to {} samples".format(WORKER_ID, max_batch_size))
@@ -127,7 +127,7 @@ with trt_engine.create_execution_context() as trt_context:
                 job_id, batch_size  = struct.unpack('ii', job_data_raw )
             elif TRANSFER_MODE == 'raw':
                 job_data_raw  = from_factory.recv()
-                if FP_MODE:
+                if NO_CONVERSION_NEEDED:
                     job_id      = struct.unpack('i', job_data_raw[:4] )[0]
                     batch_size  = (len(job_data_raw)-4) // 4 // model_monopixels
                 else:
@@ -161,18 +161,18 @@ with trt_engine.create_execution_context() as trt_context:
 
         if TRANSFER_MODE == 'dummy':
             pass
-        elif TRANSFER_MODE == 'raw' and FP_MODE:
-            float_batch = job_data_raw[4:]
-        elif TRANSFER_MODE == 'numpy' and FP_MODE:
-            float_batch = batch_data
+        elif TRANSFER_MODE == 'raw' and NO_CONVERSION_NEEDED:
+            converted_batch = job_data_raw[4:]
+        elif NO_CONVERSION_NEEDED:
+            converted_batch = batch_data
         else:
-            #float_batch = np.array(batch_data, dtype=np.float32)
-            float_batch = struct.pack("{}{}".format(len(batch_data), CONVERT_TO_TYPE_CHAR), *batch_data) # almost twice as fast!
+            #converted_batch = np.array(batch_data, dtype=np.float32)
+            converted_batch = struct.pack("{}{}".format(len(batch_data), CONVERT_TO_TYPE_CHAR), *batch_data) # almost twice as fast!
 
         inference_start = time.time()
 
         if TRANSFER_MODE != 'dummy':
-            cuda.memcpy_htod_async(d_inputs[0], float_batch, cuda_stream)    # assuming one input layer for image classification
+            cuda.memcpy_htod_async(d_inputs[0], converted_batch, cuda_stream)    # assuming one input layer for image classification
             trt_context.execute_async(bindings=model_bindings, batch_size=batch_size, stream_handle=cuda_stream.handle)
             for output in h_d_outputs:
                 cuda.memcpy_dtoh_async(output['host_mem'], output['dev_mem'], cuda_stream)
