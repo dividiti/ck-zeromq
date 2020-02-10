@@ -22,7 +22,8 @@ except NameError:
 MODEL_PATH              = os.environ['CK_ENV_TENSORRT_MODEL_FILENAME']
 MODEL_DATA_LAYOUT       = os.getenv('ML_MODEL_DATA_LAYOUT', 'NCHW')
 MODEL_COLOURS_BGR       = os.getenv('ML_MODEL_COLOUR_CHANNELS_BGR', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
-MODEL_DATA_TYPE         = os.getenv('ML_MODEL_DATA_TYPE', 'float32')
+MODEL_INPUT_DATA_TYPE   = os.getenv('ML_MODEL_INPUT_DATA_TYPE', 'float32')
+MODEL_DATA_TYPE         = os.getenv('ML_MODEL_DATA_TYPE', '(unknown)')
 MODEL_SOFTMAX_LAYER     = os.getenv('CK_ENV_ONNX_MODEL_OUTPUT_LAYER_NAME', os.getenv('CK_ENV_TENSORFLOW_MODEL_OUTPUT_LAYER_NAME', ''))
 MODEL_IMAGE_HEIGHT      = int(os.getenv('ML_MODEL_MODEL_IMAGE_HEIGHT',
                               os.getenv('CK_ENV_ONNX_MODEL_IMAGE_HEIGHT',
@@ -36,7 +37,7 @@ MODEL_IMAGE_WIDTH       = int(os.getenv('ML_MODEL_MODEL_IMAGE_WIDTH',
 ## Transfer mode:
 #
 TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
-FP_MODE                 = (os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')) and (MODEL_DATA_TYPE == 'float32')
+FP_MODE                 = (os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')) and (MODEL_INPUT_DATA_TYPE == 'float32')
 TRANSFER_TYPE_NP, TRANSFER_TYPE_CHAR = (np.float32, 'f') if FP_MODE else (np.int8, 'b')
 
 SLEEP_AFTER_SEND_MS     = int(os.getenv('CK_SLEEP_AFTER_SEND_MS', 0))
@@ -112,7 +113,7 @@ def load_preprocessed_batch(image_list, image_index):
                 else:
                     img -= np.mean(img, axis=(0,1), keepdims=True)
 
-        if MODEL_DATA_TYPE == 'int8':
+        if MODEL_INPUT_DATA_TYPE == 'int8':
             img = np.clip(img, -128, 127)
 
         # Add img to batch

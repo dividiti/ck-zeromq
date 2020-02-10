@@ -44,7 +44,8 @@ MODEL_PATH              = os.environ['CK_ENV_TENSORRT_MODEL_FILENAME']
 MODEL_DATA_LAYOUT       = os.getenv('ML_MODEL_DATA_LAYOUT', 'NCHW')
 LABELS_PATH             = os.environ['CK_CAFFE_IMAGENET_SYNSET_WORDS_TXT']
 MODEL_COLOURS_BGR       = os.getenv('ML_MODEL_COLOUR_CHANNELS_BGR', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
-MODEL_DATA_TYPE         = os.getenv('ML_MODEL_DATA_TYPE', 'float32')
+MODEL_INPUT_DATA_TYPE   = os.getenv('ML_MODEL_INPUT_DATA_TYPE', 'float32')
+MODEL_DATA_TYPE         = os.getenv('ML_MODEL_DATA_TYPE', '(unknown)')
 MODEL_IMAGE_HEIGHT      = int(os.getenv('ML_MODEL_MODEL_IMAGE_HEIGHT',
                               os.getenv('CK_ENV_ONNX_MODEL_IMAGE_HEIGHT',
                               os.getenv('CK_ENV_TENSORFLOW_MODEL_IMAGE_HEIGHT',
@@ -60,7 +61,7 @@ MODEL_SOFTMAX_LAYER     = os.getenv('CK_ENV_ONNX_MODEL_OUTPUT_LAYER_NAME', os.ge
 ## Data transfer:
 #
 TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'json')
-FP_MODE                 = (os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')) and (MODEL_DATA_TYPE == 'float32')
+FP_MODE                 = (os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')) and (MODEL_INPUT_DATA_TYPE == 'float32')
 TRANSFER_TYPE_NP, TRANSFER_TYPE_CHAR = (np.float32, 'f') if FP_MODE else (np.int8, 'b')
 
 ## Internal processing:
@@ -151,7 +152,7 @@ def load_query_samples(sample_indices):     # 0-based indices in our whole datas
                 else:
                     img -= np.mean(img, axis=(0,1), keepdims=True)
 
-        if MODEL_DATA_TYPE == 'int8':
+        if MODEL_INPUT_DATA_TYPE == 'int8':
             img = np.clip(img, -128, 127)
 
         nhwc_img = img if MODEL_DATA_LAYOUT == 'NHWC' else img.transpose(2,0,1)

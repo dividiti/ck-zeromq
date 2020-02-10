@@ -29,14 +29,15 @@ WORKER_ID               = os.getenv('CK_WORKER_ID') or os.getpid()
 MODEL_PATH              = os.environ['CK_ENV_TENSORRT_MODEL_FILENAME']
 MODEL_DATA_LAYOUT       = os.getenv('ML_MODEL_DATA_LAYOUT', 'NCHW')
 MODEL_COLOURS_BGR       = os.getenv('ML_MODEL_COLOUR_CHANNELS_BGR', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
-MODEL_DATA_TYPE         = os.getenv('ML_MODEL_DATA_TYPE', 'float32')
+MODEL_INPUT_DATA_TYPE   = os.getenv('ML_MODEL_INPUT_DATA_TYPE', 'float32')
+MODEL_DATA_TYPE         = os.getenv('ML_MODEL_DATA_TYPE', '(unknown)')
 MODEL_SOFTMAX_LAYER     = os.getenv('CK_ENV_ONNX_MODEL_OUTPUT_LAYER_NAME', os.getenv('CK_ENV_TENSORFLOW_MODEL_OUTPUT_LAYER_NAME', ''))
 
 ## Transfer mode:
 #
 TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
-NO_CONVERSION_NEEDED    = (os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')) # new meaning: data arrives pre-converted to MODEL_DATA_TYPE
-CONVERT_TO_TYPE_CHAR    = 'f' if (MODEL_DATA_TYPE == 'float32') else 'b'
+NO_CONVERSION_NEEDED    = (os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')) # new meaning: data arrives pre-converted to MODEL_INPUT_DATA_TYPE
+CONVERT_TO_TYPE_CHAR    = 'f' if (MODEL_INPUT_DATA_TYPE == 'float32') else 'b'
 
 
 ## ZeroMQ communication setup:
@@ -104,7 +105,8 @@ print("Data layout: {}".format(MODEL_DATA_LAYOUT) )
 print('Model image height: {}'.format(MODEL_IMAGE_HEIGHT))
 print('Model image width: {}'.format(MODEL_IMAGE_WIDTH))
 print('Model image channels: {}'.format(MODEL_IMAGE_CHANNELS))
-print('Model data type: {}'.format(MODEL_DATA_TYPE))
+print('Model input data type: {}'.format(MODEL_INPUT_DATA_TYPE))
+print('Model (internal) data type: {}'.format(MODEL_DATA_TYPE))
 print('Model BGR colours: {}'.format(MODEL_COLOURS_BGR))
 print('Model max_batch_size: {}'.format(max_batch_size))
 print('Image transfer mode: {}'.format(TRANSFER_MODE))
