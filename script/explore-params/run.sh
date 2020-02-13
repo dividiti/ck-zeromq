@@ -103,6 +103,7 @@ for id in ${ids[@]}; do
     "bash -c 'nohup \
         ck benchmark program:zpp-worker-tensorrt-py --repetitions=1 \
         --dep_add_tags.weights=converted-from-onnx,maxbatch.20,fp16 \
+        --dep_add_tags.lib-python-tensorrt=v5 \
         --env.CK_HUB_IP=${hub_ip} \
         --env.CK_WORKER_ID=${worker_id} \
         --env.CK_ZMQ_POST_WORK_TIMEOUT_S=${post_work_timeout_s} \
