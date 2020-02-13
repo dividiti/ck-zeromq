@@ -34,6 +34,7 @@ LOADGEN_CONFIG_FILE         = os.getenv('CK_ENV_LOADGEN_CONFIG_FILE', '')   # Ve
 LOADGEN_MULTISTREAMNESS     = os.getenv('CK_LOADGEN_MULTISTREAMNESS', '')   # if not set, use value from LoadGen's config file, or LoadGen code
 LOADGEN_MAX_DURATION_S      = os.getenv('CK_LOADGEN_MAX_DURATION_S', '')    # if not set, use value from LoadGen's config file, or LoadGen code
 LOADGEN_COUNT_OVERRIDE      = os.getenv('CK_LOADGEN_COUNT_OVERRIDE', '')
+LOADGEN_TARGET_QPS          = os.getenv('CK_LOADGEN_TARGET_QPS', '')        # Maps to differently named internal config options, depending on scenario - see below.
 BATCH_SIZE                  = int(os.getenv('CK_BATCH_SIZE', '1'))
 LOADGEN_WARM_UP_SAMPLES     = int(os.getenv('CK_LOADGEN_WARM_UP_SAMPLES', '0'))
 SIDELOAD_JSON               = os.getenv('CK_LOADGEN_SIDELOAD_JSON','')
@@ -345,6 +346,12 @@ def benchmark_using_loadgen():
     if LOADGEN_COUNT_OVERRIDE:
         ts.min_query_count = int(LOADGEN_COUNT_OVERRIDE)
         ts.max_query_count = int(LOADGEN_COUNT_OVERRIDE)
+
+    if LOADGEN_TARGET_QPS:
+        target_qps                  = float(LOADGEN_TARGET_QPS)
+        ts.multi_stream_target_qps  = target_qps
+        ts.server_target_qps        = target_qps
+        ts.offline_expected_qps     = target_qps
 
     sut = lg.ConstructSUT(issue_queries, flush_queries, process_latencies)
     qsl = lg.ConstructQSL(LOADGEN_DATASET_SIZE, LOADGEN_BUFFER_SIZE, load_query_samples, unload_query_samples)

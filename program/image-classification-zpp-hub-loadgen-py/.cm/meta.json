@@ -97,9 +97,10 @@
     "CK_LOADGEN_MODE": "AccuracyOnly", 
     "CK_LOADGEN_MULTISTREAMNESS": "", 
     "CK_LOADGEN_SCENARIO": "SingleStream",
-    "CK_LOADGEN_WARM_UP_SAMPLES": 0,
     "CK_LOADGEN_SIDELOAD_JSON": "non-mlperf_sideload.json",
+    "CK_LOADGEN_TARGET_QPS": "",
     "CK_LOADGEN_USE_CONFIG_ENV": "no",
+    "CK_LOADGEN_WARM_UP_SAMPLES": 0,
     "CK_ZMQ_FAN_PORT": 5557,
     "CK_ZMQ_FUNNEL_PORT": 5558,
     "CK_ZMQ_TRANSFER_MODE": "numpy"
