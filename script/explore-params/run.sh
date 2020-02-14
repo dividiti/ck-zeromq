@@ -39,7 +39,7 @@ transfer_mode=${CK_ZMQ_TRANSFER_MODE:-numpy}
 echo "- transfer mode: ${transfer_mode}"
 
 # FP mode: NO, YES.
-fp_mode=${CK_ZMQ_FP_MODE:-YES}
+fp_mode=${CK_FP_MODE:-YES}
 if [ "${fp_mode}" = "YES" ]; then
   fp_mode_tag="yes"
 elif [ "${fp_mode}" = "NO" ]; then
@@ -106,6 +106,7 @@ for id in ${ids[@]}; do
         --dep_add_tags.lib-python-tensorrt=v5 \
         --env.CK_HUB_IP=${hub_ip} \
         --env.CK_WORKER_ID=${worker_id} \
+        --env.CK_FP_MODE=${fp_mode_tag} \
         --env.CK_ZMQ_POST_WORK_TIMEOUT_S=${post_work_timeout_s} \
         --record --record_repo=local \
         --record_uoa=${record_uoa}.${worker_id} \
@@ -131,6 +132,7 @@ ck benchmark program:image-classification-zpp-hub-loadgen-py --repetitions=1 \
 --env.CK_LOADGEN_MULTISTREAMNESS=${multistreamness} \
 --env.CK_LOADGEN_WARM_UP_SAMPLES=${warm_up_samples} \
 --env.CK_BATCH_SIZE=${batch_size} \
+--env.CK_FP_MODE=${fp_mode_tag} \
 --env.CK_SILENT_MODE=YES \
 --record --record_repo=local \
 --record_uoa=${record_uoa}.hub \
