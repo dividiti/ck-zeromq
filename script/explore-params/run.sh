@@ -107,6 +107,7 @@ for id in ${ids[@]}; do
         --env.CK_HUB_IP=${hub_ip} \
         --env.CK_WORKER_ID=${worker_id} \
         --env.CK_FP_MODE=${fp_mode_tag} \
+        --env.CK_ZMQ_TRANSFER_MODE=${transfer_mode} \
         --env.CK_ZMQ_POST_WORK_TIMEOUT_S=${post_work_timeout_s} \
         --record --record_repo=local \
         --record_uoa=${record_uoa}.${worker_id} \
@@ -132,6 +133,7 @@ ck benchmark program:image-classification-zpp-hub-loadgen-py --repetitions=1 \
 --env.CK_LOADGEN_MULTISTREAMNESS=${multistreamness} \
 --env.CK_LOADGEN_WARM_UP_SAMPLES=${warm_up_samples} \
 --env.CK_BATCH_SIZE=${batch_size} \
+--env.CK_ZMQ_TRANSFER_MODE=${transfer_mode} \
 --env.CK_FP_MODE=${fp_mode_tag} \
 --env.CK_SILENT_MODE=YES \
 --record --record_repo=local \
