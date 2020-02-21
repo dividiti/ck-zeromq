@@ -80,11 +80,11 @@ fi
 echo "- mode: ${mode} (${mode_tag})"
 
 if [ "${mode}" = "AccuracyOnly" ]; then
-  dataset_size=50000
-  buffer_size=500
+  dataset_size=20 # 50000
+  buffer_size=20 # 500
 else
-  dataset_size=1024
-  buffer_size=1024
+  dataset_size=20
+  buffer_size=20
 fi
 
 echo
@@ -132,6 +132,8 @@ ck benchmark program:image-classification-zpp-hub-loadgen-py --repetitions=1 \
 --env.CK_LOADGEN_COUNT_OVERRIDE=${count} \
 --env.CK_LOADGEN_MULTISTREAMNESS=${multistreamness} \
 --env.CK_LOADGEN_WARM_UP_SAMPLES=${warm_up_samples} \
+--env.CK_LOADGEN_DATASET_SIZE=${dataset_size} \
+--env.CK_LOADGEN_BUFFER_SIZE=${buffer_size} \
 --env.CK_BATCH_SIZE=${batch_size} \
 --env.CK_ZMQ_TRANSFER_MODE=${transfer_mode} \
 --env.CK_FP_MODE=${fp_mode_tag} \
