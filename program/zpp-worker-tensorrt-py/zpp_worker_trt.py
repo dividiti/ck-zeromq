@@ -221,8 +221,8 @@ with trt_engine.create_execution_context() as trt_context:
         inference_start = time.time()
 
         if TRANSFER_MODE != 'dummy':
-            # FIXME: Commenting this out only currently works for the CONVERSION_NEEDED path.
- #           cuda.memcpy_htod_async(d_inputs[0], converted_batch, cuda_stream)    # assuming one input layer for image classification
+            if NO_CONVERSION_NEEDED:
+                cuda.memcpy_htod_async(d_inputs[0], converted_batch, cuda_stream)    # assuming one input layer for image classification
             trt_context.execute_async(bindings=model_bindings, batch_size=batch_size, stream_handle=cuda_stream.handle)
             for output in h_d_outputs:
                 cuda.memcpy_dtoh_async(output['host_mem'], output['dev_mem'], cuda_stream)
