@@ -83,8 +83,8 @@ if [ "${mode}" = "AccuracyOnly" ]; then
   dataset_size=20 # 50000
   buffer_size=20 # 500
 else
-  dataset_size=1024
-  buffer_size=1024
+  dataset_size=20
+  buffer_size=20
 fi
 
 echo
