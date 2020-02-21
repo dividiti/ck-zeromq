@@ -40,7 +40,6 @@ NO_CONVERSION_NEEDED    = (os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON',
 CONVERSION_NEEDED       = not NO_CONVERSION_NEEDED
 CONVERSION_TYPE         = 'f' if (MODEL_INPUT_DATA_TYPE == 'float32') else 'b'
 
-
 ## ZeroMQ communication setup:
 #
 zmq_context = zmq.Context()
@@ -52,7 +51,6 @@ if ZMQ_POST_WORK_TIMEOUT_S != '':
 
 to_funnel = zmq_context.socket(zmq.PUSH)
 to_funnel.connect('tcp://{}:{}'.format(HUB_IP, ZMQ_FUNNEL_PORT))
-
 
 ## CUDA/TRT model setup:
 #
@@ -102,22 +100,27 @@ if MODEL_DATA_LAYOUT == 'NHWC':
 else:
     (MODEL_IMAGE_CHANNELS, MODEL_IMAGE_HEIGHT, MODEL_IMAGE_WIDTH) = model_input_shape
 
-# Define type conversion kernels. NB: Must be done after initializing CUDA context.
-# See all type converstion (cast) functions here:
-# https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH__INTRINSIC__CAST.html
-from pycuda.compiler import SourceModule
-conversion_module = SourceModule("""
-// Convert signed 8-bit integer to 32-bit floating-point using round-to-nearest-even mode.
-__global__ void b2f(float * __restrict__ out, const signed char * __restrict__ in, long num_elems)
-{
-    long idx = threadIdx.x + blockIdx.x * blockDim.x;
-    if (idx < num_elems)
-        out[idx] = __int2float_rn( (signed int) in[idx] );
-}
-""")
-if CONVERSION_NEEDED and CONVERSION_TYPE == 'f':
+if CONVERSION_NEEDED:
     compilation_start = time.time();
-    conversion_kernel = conversion_module.get_function("b2f")
+
+    from pycuda.compiler import SourceModule
+    # Define type conversion kernels. NB: Must be done after initializing CUDA context.
+    conversion_module = SourceModule(source="""
+    // See all type converstion (cast) built-in functionshere:
+    // https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH__INTRINSIC__CAST.html
+
+    // Convert signed 8-bit integer to 32-bit floating-point using round-to-nearest-even mode.
+    __global__ void b2f(float * __restrict__ out, const signed char * __restrict__ in, long num_elems)
+    {
+        long idx = threadIdx.x + blockIdx.x * blockDim.x;
+        if (idx < num_elems)
+            out[idx] = __int2float_rn( (signed int) in[idx] );
+    }
+    """, cache_dir=False)
+
+    kernel_name = 'b2f' if CONVERSION_TYPE == 'f' else None
+    conversion_kernel = conversion_module.get_function(kernel_name)
+
     compilation_time_ms = (time.time() - compilation_start)*1000
     print("Compilation time of type conversion kernel: {:.2f} ms".format(compilation_time_ms))
 
@@ -193,18 +196,17 @@ with trt_engine.create_execution_context() as trt_context:
             max_block_dim_x = 1024
             max_grid_dim_x = 2147483647
             max_x = max_block_dim_x * max_grid_dim_x
+            # The kernel processes one element per thread, so we cannot exceed max_x elements.
             num_elems = len(batch_data)
             if num_elems >= max_x:
                 print("Error: Number of elements exceeds max dimension X: {} >= {}".format(num_elems, max_x))
                 pass
-            mem_size = num_elems * 1 # TODO: sizeof(elem)
-            batch_data_gpu = cuda.mem_alloc(mem_size)
+
+            batch_data_gpu = cuda.mem_alloc(num_elems * dtype.itemsize)
             cuda.memcpy_htod_async(batch_data_gpu, batch_data, cuda_stream)
 
-            block_dim_x = max_block_dim_x # TODO: Can be tuned down.
-            print(block_dim_x)
+            block_dim_x = int( max_block_dim_x / 1 ) # TODO: Can be tuned down e.g. halved.
             grid_dim_x = int( (num_elems + block_dim_x - 1) / block_dim_x )
-            print(grid_dim_x)
             conversion_kernel(d_inputs[0], batch_data_gpu, np.int64(num_elems), grid=(grid_dim_x,1,1), block=(block_dim_x,1,1))
 
 #            print(batch_data[:8])
