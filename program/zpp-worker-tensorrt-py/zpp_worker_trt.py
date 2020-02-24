@@ -165,11 +165,10 @@ with trt_engine.create_execution_context() as trt_context:
             pass
         elif TRANSFER_MODE == 'raw' and NO_CONVERSION_NEEDED:
             converted_batch = job_data_raw[4:]
-        elif NO_CONVERSION_NEEDED:
-            converted_batch = batch_data
+        elif type(batch_data)==list or not NO_CONVERSION_NEEDED:
+            converted_batch = struct.pack("{}{}".format(len(batch_data), CONVERT_TO_TYPE_CHAR), *batch_data)
         else:
-            #converted_batch = np.array(batch_data, dtype=np.float32)
-            converted_batch = struct.pack("{}{}".format(len(batch_data), CONVERT_TO_TYPE_CHAR), *batch_data) # almost twice as fast!
+            converted_batch = batch_data
 
         inference_start = time.time()
 
