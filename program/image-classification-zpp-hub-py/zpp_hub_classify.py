@@ -47,18 +47,13 @@ SLEEP_AFTER_SEND_MS     = int(os.getenv('CK_SLEEP_AFTER_SEND_MS', 0))
 ZMQ_FAN_PORT            = os.getenv('CK_ZMQ_FAN_PORT', 5557)
 ZMQ_FUNNEL_PORT         = os.getenv('CK_ZMQ_FUNNEL_PORT', 5558)
 
-
-## Internal processing:
-#
-VECTOR_DATA_TYPE        = np.float32
-
 ## Image normalization:
 #
 MODEL_NORMALIZE_DATA    = os.getenv('ML_MODEL_NORMALIZE_DATA') in ('YES', 'yes', 'ON', 'on', '1')
 SUBTRACT_MEAN           = os.getenv('ML_MODEL_SUBTRACT_MEAN', 'YES') in ('YES', 'yes', 'ON', 'on', '1')
 GIVEN_CHANNEL_MEANS     = os.getenv('ML_MODEL_GIVEN_CHANNEL_MEANS', '')
 if GIVEN_CHANNEL_MEANS:
-    GIVEN_CHANNEL_MEANS = np.array(GIVEN_CHANNEL_MEANS.split(' '), dtype=VECTOR_DATA_TYPE)
+    GIVEN_CHANNEL_MEANS = np.fromstring(GIVEN_CHANNEL_MEANS, dtype=np.float32, sep=' ').astype(TRANSFER_TYPE_NP)
     if MODEL_COLOURS_BGR:
         GIVEN_CHANNEL_MEANS = GIVEN_CHANNEL_MEANS[::-1]     # swapping Red and Blue colour channels
 
@@ -100,7 +95,7 @@ def load_preprocessed_batch(image_list, image_index):
             img = img[...,::-1]     # swapping Red and Blue colour channels
 
         if IMAGE_DATA_TYPE != 'float32':
-            img = img.astype(VECTOR_DATA_TYPE)
+            img = img.astype(np.float32)
 
             # Normalize
             if MODEL_NORMALIZE_DATA:
@@ -113,7 +108,7 @@ def load_preprocessed_batch(image_list, image_index):
                 else:
                     img -= np.mean(img, axis=(0,1), keepdims=True)
 
-        if MODEL_INPUT_DATA_TYPE == 'int8':
+        if MODEL_INPUT_DATA_TYPE == 'int8' or TRANSFER_TYPE_NP == np.int8:
             img = np.clip(img, -128, 127)
 
         # Add img to batch

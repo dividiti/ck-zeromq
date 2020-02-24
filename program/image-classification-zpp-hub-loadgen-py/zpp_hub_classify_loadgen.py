@@ -65,17 +65,13 @@ TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'json')
 FP_MODE                 = (os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')) and (MODEL_INPUT_DATA_TYPE == 'float32')
 TRANSFER_TYPE_NP, TRANSFER_TYPE_CHAR = (np.float32, 'f') if FP_MODE else (np.int8, 'b')
 
-## Internal processing:
-#
-VECTOR_DATA_TYPE        = np.float32
-
 ## Image normalization:
 #
 MODEL_NORMALIZE_DATA    = os.getenv('ML_MODEL_NORMALIZE_DATA') in ('YES', 'yes', 'ON', 'on', '1')
 SUBTRACT_MEAN           = os.getenv('ML_MODEL_SUBTRACT_MEAN', 'YES') in ('YES', 'yes', 'ON', 'on', '1')
 GIVEN_CHANNEL_MEANS     = os.getenv('ML_MODEL_GIVEN_CHANNEL_MEANS', '')
 if GIVEN_CHANNEL_MEANS:
-    GIVEN_CHANNEL_MEANS = np.array(GIVEN_CHANNEL_MEANS.split(' '), dtype=VECTOR_DATA_TYPE)
+    GIVEN_CHANNEL_MEANS = np.fromstring(GIVEN_CHANNEL_MEANS, dtype=np.float32, sep=' ').astype(TRANSFER_TYPE_NP)
     if MODEL_COLOURS_BGR:
         GIVEN_CHANNEL_MEANS = GIVEN_CHANNEL_MEANS[::-1]     # swapping Red and Blue colour channels
 
@@ -140,7 +136,7 @@ def load_query_samples(sample_indices):     # 0-based indices in our whole datas
             img = img[...,::-1]     # swapping Red and Blue colour channels
 
         if IMAGE_DATA_TYPE != 'float32':
-            img = img.astype(VECTOR_DATA_TYPE)
+            img = img.astype(np.float32)
 
             # Normalize
             if MODEL_NORMALIZE_DATA:
@@ -153,7 +149,7 @@ def load_query_samples(sample_indices):     # 0-based indices in our whole datas
                 else:
                     img -= np.mean(img, axis=(0,1), keepdims=True)
 
-        if MODEL_INPUT_DATA_TYPE == 'int8':
+        if MODEL_INPUT_DATA_TYPE == 'int8' or TRANSFER_TYPE_NP == np.int8:
             img = np.clip(img, -128, 127)
 
         nhwc_img = img if MODEL_DATA_LAYOUT == 'NHWC' else img.transpose(2,0,1)
