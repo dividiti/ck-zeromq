@@ -36,8 +36,9 @@ MODEL_SOFTMAX_LAYER     = os.getenv('CK_ENV_ONNX_MODEL_OUTPUT_LAYER_NAME', os.ge
 ## Transfer mode:
 #
 TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
-NO_CONVERSION_NEEDED    = (os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')) # new meaning: data arrives pre-converted to MODEL_INPUT_DATA_TYPE
+CONVERSION_NEEDED       = (os.getenv('CK_FP_MODE', 'NO') not in ('YES', 'yes', 'ON', 'on', '1')) and (MODEL_INPUT_DATA_TYPE == 'float32')
 CONVERT_TO_TYPE_CHAR    = 'f' if (MODEL_INPUT_DATA_TYPE == 'float32') else 'b'
+ID_SIZE_IN_BYTES        = 4 # assuming uint32
 
 
 ## ZeroMQ communication setup:
@@ -81,7 +82,8 @@ for interface_layer in trt_engine:
     if trt_engine.binding_is_input(interface_layer):
         interface_type = 'Input'
         d_inputs.append(dev_mem)
-        model_input_shape   = shape
+        model_input_shape       = shape
+        model_input_type_size   = dtype.itemsize
     else:
         interface_type = 'Output'
         host_mem    = cuda.pagelocked_empty(size, trt.nptype(dtype))
@@ -110,7 +112,7 @@ print('Model (internal) data type: {}'.format(MODEL_DATA_TYPE))
 print('Model BGR colours: {}'.format(MODEL_COLOURS_BGR))
 print('Model max_batch_size: {}'.format(max_batch_size))
 print('Image transfer mode: {}'.format(TRANSFER_MODE))
-print('Images transferred pre-converted to the input data type of the model: {}'.format(NO_CONVERSION_NEEDED))
+print('Images transferred need to be converted to input data type of the model: {}'.format(CONVERSION_NEEDED))
 print("")
 
 print("[worker {}] Ready to run inference on batches up to {} samples".format(WORKER_ID, max_batch_size))
@@ -123,29 +125,17 @@ with trt_engine.create_execution_context() as trt_context:
     total_inference_time = 0
     while JOBS_LIMIT<1 or done_count < JOBS_LIMIT:
 
+        wait_and_receive_start = time.time()
+
         try:
             if TRANSFER_MODE == 'dummy':
-                job_data_raw        = from_factory.recv()
-                job_id, batch_size  = struct.unpack('ii', job_data_raw )
+                job_data_raw    = from_factory.recv()
             elif TRANSFER_MODE == 'raw':
-                job_data_raw  = from_factory.recv()
-                if NO_CONVERSION_NEEDED:
-                    job_id      = struct.unpack('i', job_data_raw[:4] )[0]
-                    batch_size  = (len(job_data_raw)-4) // 4 // model_monopixels
-                else:
-                    batch_data  = list( struct.unpack('i{}b'.format(len(job_data_raw)-4), job_data_raw) )
-                    job_id      = batch_data.pop(0)
-                    batch_size  = len(batch_data) // model_monopixels
-            else:
-                if TRANSFER_MODE == 'json':
-                    job_data_struct    = from_factory.recv_json()
-                elif TRANSFER_MODE in ('pickle', 'numpy'):
-                    job_data_struct    = from_factory.recv_pyobj()
-
-                job_id      = job_data_struct['job_id']
-                batch_data  = job_data_struct['batch_data']
-                batch_size  = len(batch_data) // model_monopixels
-
+                job_data_raw    = from_factory.recv()
+            elif TRANSFER_MODE == 'json':
+                job_data_struct = from_factory.recv_json()
+            elif TRANSFER_MODE in ('pickle', 'numpy'):
+                job_data_struct = from_factory.recv_pyobj()
         except zmq.error.Again as e:    # ZeroMQ's timeout exception
             if done_count==0:
                 print('.', end='', flush=True)
@@ -155,20 +145,36 @@ with trt_engine.create_execution_context() as trt_context:
                                 done_count, ZMQ_POST_WORK_TIMEOUT_S))
                 break
 
+        floatize_start = time.time()
+
+        converted_batch = None
+        if TRANSFER_MODE == 'dummy':
+            job_id, batch_size  = struct.unpack('ii', job_data_raw )
+        else:
+            if TRANSFER_MODE == 'raw':
+                num_raw_bytes   = len(job_data_raw)-ID_SIZE_IN_BYTES
+                if CONVERSION_NEEDED:
+                    batch_data      = list( struct.unpack('i{}b'.format(num_raw_bytes), job_data_raw) )     # expensive
+                    job_id          = batch_data.pop(0)
+                    batch_size      = len(batch_data) // model_monopixels
+                else:
+                    converted_batch = job_data_raw[ID_SIZE_IN_BYTES:]
+                    job_id          = struct.unpack('i', job_data_raw[:ID_SIZE_IN_BYTES] )[0]
+                    batch_size      = num_raw_bytes // model_input_type_size // model_monopixels
+            elif TRANSFER_MODE in ('json', 'pickle', 'numpy'):
+                job_id      = job_data_struct['job_id']
+                batch_data  = job_data_struct['batch_data']
+                batch_size  = len(batch_data) // model_monopixels
+
+            if not converted_batch:
+                if type(batch_data)==list or CONVERSION_NEEDED:
+                    converted_batch = struct.pack("{}{}".format(len(batch_data), CONVERT_TO_TYPE_CHAR), *batch_data)
+                else:
+                    converted_batch = batch_data
+
         if batch_size>max_batch_size:   # basic protection. FIXME: could report to hub, could split and still do inference...
             print("[worker {}] unable to perform inference on {}-sample batch. Skipping it.".format(WORKER_ID, batch_size))
             continue
-
-        floatize_start = time.time()
-
-        if TRANSFER_MODE == 'dummy':
-            pass
-        elif TRANSFER_MODE == 'raw' and NO_CONVERSION_NEEDED:
-            converted_batch = job_data_raw[4:]
-        elif type(batch_data)==list or not NO_CONVERSION_NEEDED:
-            converted_batch = struct.pack("{}{}".format(len(batch_data), CONVERT_TO_TYPE_CHAR), *batch_data)
-        else:
-            converted_batch = batch_data
 
         inference_start = time.time()
 
@@ -179,8 +185,9 @@ with trt_engine.create_execution_context() as trt_context:
                 cuda.memcpy_dtoh_async(output['host_mem'], output['dev_mem'], cuda_stream)
             cuda_stream.synchronize()
 
-        inference_time_ms   = (time.time() - inference_start)*1000
-        floatize_time_ms    = (inference_start-floatize_start)*1000
+        inference_time_ms           = (time.time() - inference_start)*1000
+        floatize_time_ms            = (inference_start-floatize_start)*1000
+        wait_and_receive_time_ms    = (floatize_start-wait_and_receive_start)*1000
 
         if TRANSFER_MODE == 'dummy':        # no inference - fake the batch results
             softmax_merged = [ 0 ]*1001*batch_size
@@ -197,6 +204,7 @@ with trt_engine.create_execution_context() as trt_context:
         response = {
             'job_id': job_id,
             'worker_id': WORKER_ID,
+            'wait_and_receive_time_ms': wait_and_receive_time_ms,
             'floatize_time_ms': floatize_time_ms,
             'inference_time_ms': inference_time_ms,
             'raw_batch_results': softmax_merged,
@@ -204,7 +212,7 @@ with trt_engine.create_execution_context() as trt_context:
 
         to_funnel.send_json(response)
 
-        print("[worker {}] classified job_id={} [{}] in {:.2f} ms (after spending {:.2f} ms to convert to floats)".format(WORKER_ID, job_id, batch_size, inference_time_ms, floatize_time_ms))
+        print("[worker {}] classified job_id={} [{}] in {:.2f} ms (after spending {:.2f} ms on waiting+receiving AND {:.2f} ms on type conversion)".format(WORKER_ID, job_id, batch_size, inference_time_ms, wait_and_receive_time_ms, floatize_time_ms))
         total_inference_time += inference_time_ms
 
         done_count += 1
