@@ -60,7 +60,7 @@ echo "- FP mode: ${fp_mode} (${fp_mode_tag})"
 
 # Number of samples to discard when warming up:
 # by default, use as many as the number of co-processors.
-warmup_samples=${CK_LOADGEN_WARM_UP_SAMPLES:-${num_ids}} # TODO: Rename CK_WORKER_WARMUP_SAMPLES?
+warmup_samples=${CK_WORKER_WARMUP_SAMPLES:-${num_ids}}
 echo "- warm-up samples: ${warmup_samples}"
 
 # Batch size.

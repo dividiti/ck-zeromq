@@ -36,7 +36,7 @@ LOADGEN_MAX_DURATION_S      = os.getenv('CK_LOADGEN_MAX_DURATION_S', '')    # if
 LOADGEN_COUNT_OVERRIDE      = os.getenv('CK_LOADGEN_COUNT_OVERRIDE', '')
 LOADGEN_TARGET_QPS          = os.getenv('CK_LOADGEN_TARGET_QPS', '')        # Maps to differently named internal config options, depending on scenario - see below.
 BATCH_SIZE                  = int(os.getenv('CK_BATCH_SIZE', '1'))
-LOADGEN_WARM_UP_SAMPLES     = int(os.getenv('CK_LOADGEN_WARM_UP_SAMPLES', '0'))
+WORKER_WARMUP_SAMPLES       = int(os.getenv('CK_WORKER_WARMUP_SAMPLES', '0'))
 SIDELOAD_JSON               = os.getenv('CK_LOADGEN_SIDELOAD_JSON','')
 
 ## Model properties:
@@ -169,7 +169,7 @@ def unload_query_samples(sample_indices):
 openme_data  = {}                   # side-loaded stats
 in_progress  = {}                   # local store of metadata about batches between issue_queries and send_responses
 funnel_should_be_running = True     # a way for the fan to signal to the funnel_thread to end
-warm_up_mode             = False    # while on, QuerySampleResponses will not be sent to LoadGen
+warmup_mode              = False    # while on, QuerySampleResponses will not be sent to LoadGen
 
 def issue_queries(query_samples):
 
@@ -220,7 +220,7 @@ def issue_queries(query_samples):
 
 def send_responses():
 
-    global funnel_should_be_running, warm_up_mode, openme_data
+    global funnel_should_be_running, warmup_mode, openme_data
 
     funnel_start = time.time()
 
@@ -254,7 +254,7 @@ def send_responses():
             'roundtrip_time_ms':        roundtrip_time_ms,
         })
 
-        if warm_up_mode:
+        if warmup_mode:
             continue
 
         if worker_id not in inference_times_ms_by_worker_id:
@@ -318,7 +318,7 @@ def process_latencies(latencies_ns):
 def benchmark_using_loadgen():
     "Perform the benchmark using python API for the LoadGen library"
 
-    global funnel_should_be_running, warm_up_mode, openme_data
+    global funnel_should_be_running, warmup_mode, openme_data
 
     scenario = {
         'SingleStream':     lg.TestScenario.SingleStream,
@@ -365,19 +365,19 @@ def benchmark_using_loadgen():
     funnel_should_be_running = True
     funnel_thread.start()
 
-    if LOADGEN_WARM_UP_SAMPLES:
-        warm_up_id_range = list(range(LOADGEN_WARM_UP_SAMPLES))
-        load_query_samples(warm_up_id_range)
+    if WORKER_WARMUP_SAMPLES:
+        warmup_id_range = list(range(WORKER_WARMUP_SAMPLES))
+        load_query_samples(warmup_id_range)
 
-        warm_up_mode = True
+        warmup_mode = True
         print("Sending out the warm-up samples, waiting for responses...")
-        issue_queries([lg.QuerySample(id,id) for id in warm_up_id_range])
+        issue_queries([lg.QuerySample(id,id) for id in warmup_id_range])
 
         while len(in_progress)>0:       # waiting for the in_progress queue to clear up
             time.sleep(1)
         print(" Done!")
 
-        warm_up_mode = False
+        warmup_mode = False
 
     lg.StartTestWithLogSettings(sut, qsl, ts, log_settings)
 
