@@ -16,7 +16,6 @@ import pycuda.tools
 #
 ZMQ_FAN_PORT            = os.getenv('CK_ZMQ_FAN_PORT', 5557)
 ZMQ_FUNNEL_PORT         = os.getenv('CK_ZMQ_FUNNEL_PORT', 5558)
-ZMQ_POST_WORK_TIMEOUT_S = os.getenv('CK_ZMQ_POST_WORK_TIMEOUT_S', '')   # empty string means no timeout
 
 ## Worker properties:
 #
@@ -24,6 +23,7 @@ HUB_IP                  = os.getenv('CK_HUB_IP', 'localhost')
 JOBS_LIMIT              = int(os.getenv('CK_WORKER_JOB_LIMIT', 0))
 WORKER_ID               = os.getenv('CK_WORKER_ID') or os.getpid()
 WORKER_OUTPUT_FORMAT    = os.getenv('CK_WORKER_OUTPUT_FORMAT', 'softmax')
+WORKER_POSTWORK_TIMEOUT_S = os.getenv('CK_WORKER_POSTWORK_TIMEOUT_S', '')  # empty string means no timeout
 
 ## Model properties:
 #
@@ -48,8 +48,8 @@ zmq_context = zmq.Context()
 
 from_factory = zmq_context.socket(zmq.PULL)
 from_factory.connect('tcp://{}:{}'.format(HUB_IP, ZMQ_FAN_PORT))
-if ZMQ_POST_WORK_TIMEOUT_S != '':
-    from_factory.RCVTIMEO = int(ZMQ_POST_WORK_TIMEOUT_S)*1000   # expects milliseconds
+if WORKER_POSTWORK_TIMEOUT_S != '':
+    from_factory.RCVTIMEO = int(WORKER_POSTWORK_TIMEOUT_S)*1000   # expects milliseconds
 
 to_funnel = zmq_context.socket(zmq.PUSH)
 to_funnel.connect('tcp://{}:{}'.format(HUB_IP, ZMQ_FUNNEL_PORT))
@@ -144,7 +144,7 @@ with trt_engine.create_execution_context() as trt_context:
                 continue
             else:
                 print("Having done {} inference cycles, leaving after a timeout of {} seconds".format(
-                                done_count, ZMQ_POST_WORK_TIMEOUT_S))
+                                done_count, WORKER_POSTWORK_TIMEOUT_S))
                 break
 
         floatize_start = time.time()

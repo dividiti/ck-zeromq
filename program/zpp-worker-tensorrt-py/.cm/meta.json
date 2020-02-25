@@ -52,10 +52,10 @@
     "CK_WORKER_ID": "",
     "CK_WORKER_JOB_LIMIT": 0,
     "CK_WORKER_OUTPUT_FORMAT": "softmax",
+    "CK_WORKER_POSTWORK_TIMEOUT_S": "",
     "CK_HUB_IP": "localhost",
     "CK_ZMQ_FAN_PORT": 5557,
     "CK_ZMQ_FUNNEL_PORT": 5558,
-    "CK_ZMQ_POST_WORK_TIMEOUT_S": "",
     "CK_ZMQ_TRANSFER_MODE": "numpy"
   }, 
   "tags": [
