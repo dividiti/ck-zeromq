@@ -37,6 +37,11 @@ echo "- ${num_ids} worker(s): ${ids[@]}"
 postwork_timeout_s=${CK_ZMQ_POST_WORK_TIMEOUT:-5} # TODO: Rename as CK_WORKER_POSTWORK_TIMEOUT_S ?
 echo "- postwork timeout: ${postwork_timeout_s} s"
 
+# Worker response format: argmax returns class id, softmax returns
+# 1000 or 1001-element vector of class probabilities.
+worker_output=${CK_WORKER_OUTPUT_FORMAT:-argmax}
+echo "- worker output: ${worker_output}"
+
 # Transfer mode: raw, json, pickle, numpy.
 transfer_mode=${CK_ZMQ_TRANSFER_MODE:-numpy}
 echo "- transfer mode: ${transfer_mode}"
@@ -175,9 +180,10 @@ for id in ${ids[@]}; do
     --dep_add_tags.lib-python-tensorrt=v5 \
     --env.CK_HUB_IP=${hub_ip} \
     --env.CK_WORKER_ID=${worker_id} \
+    --env.CK_WORKER_OUTPUT_FORMAT=${worker_output} \
+    --env.CK_ZMQ_POST_WORK_TIMEOUT_S=${postwork_timeout_s} \
     --env.CK_FP_MODE=${fp_mode_tag} \
     --env.CK_ZMQ_TRANSFER_MODE=${transfer_mode} \
-    --env.CK_ZMQ_POST_WORK_TIMEOUT_S=${postwork_timeout_s} \
     --record --record_repo=local \
     --record_uoa=${record_uoa}.${worker_id} \
     --tags=${record_tags},${worker_id} \
