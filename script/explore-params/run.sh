@@ -34,7 +34,7 @@ num_ids=${#ids[@]}
 echo "- ${num_ids} worker(s): ${ids[@]}"
 
 # Time each worker should wait after last received work-item before exiting.
-postwork_timeout_s=${CK_ZMQ_POST_WORK_TIMEOUT:-5} # TODO: Rename as CK_WORKER_POSTWORK_TIMEOUT_S ?
+postwork_timeout_s=${CK_WORKER_POSTWORK_TIMEOUT_S:-10}
 echo "- postwork timeout: ${postwork_timeout_s} s"
 
 # Worker response format: argmax returns class id, softmax returns
