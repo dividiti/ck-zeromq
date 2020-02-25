@@ -268,8 +268,11 @@ def send_responses():
 
         response = []
         response_array_refs = []    # This is needed to guarantee that the individual buffers to which we keep extra-Pythonian references, do not get garbage-collected.
-        for qs, softmax_vector in zip(batch, batch_results):
-            predicted_label = np.argmax( softmax_vector[-1000:] )
+        for qs, prediction_for_one_sample in zip(batch, batch_results):
+            if len(prediction_for_one_sample)==1:
+                predicted_label = prediction_for_one_sample
+            else:
+                predicted_label = np.argmax( prediction_for_one_sample[-1000:] )
 
             response_array = array.array("B", np.array(predicted_label, np.float32).tobytes())
             response_array_refs.append(response_array)

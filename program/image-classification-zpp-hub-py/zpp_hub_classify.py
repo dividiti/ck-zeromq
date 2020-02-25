@@ -24,7 +24,6 @@ MODEL_DATA_LAYOUT       = os.getenv('ML_MODEL_DATA_LAYOUT', 'NCHW')
 MODEL_COLOURS_BGR       = os.getenv('ML_MODEL_COLOUR_CHANNELS_BGR', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
 MODEL_INPUT_DATA_TYPE   = os.getenv('ML_MODEL_INPUT_DATA_TYPE', 'float32')
 MODEL_DATA_TYPE         = os.getenv('ML_MODEL_DATA_TYPE', '(unknown)')
-MODEL_SOFTMAX_LAYER     = os.getenv('CK_ENV_ONNX_MODEL_OUTPUT_LAYER_NAME', os.getenv('CK_ENV_TENSORFLOW_MODEL_OUTPUT_LAYER_NAME', ''))
 MODEL_IMAGE_HEIGHT      = int(os.getenv('ML_MODEL_MODEL_IMAGE_HEIGHT',
                               os.getenv('CK_ENV_ONNX_MODEL_IMAGE_HEIGHT',
                               os.getenv('CK_ENV_TENSORFLOW_MODEL_IMAGE_HEIGHT',
@@ -236,8 +235,13 @@ def funnel_code():
             inference_times_ms_by_worker_id[worker_id] = []
         inference_times_ms_by_worker_id[worker_id].append( inference_time_ms )
 
-        for sample_id, softmax_vector in zip(batch_ids, batch_results):
-            trimmed_softmax_vector = softmax_vector[-1000:]    # skipping the background class on the left (if present)
+        for sample_id, prediction_for_one_sample in zip(batch_ids, batch_results):
+            if len(prediction_for_one_sample)==1:
+                predicted_label = int(prediction_for_one_sample[0])
+                trimmed_softmax_vector = [0]*predicted_label + [1] + [0]*(1000-predicted_label-1)
+            else:
+                trimmed_softmax_vector = prediction_for_one_sample[-1000:]    # skipping the background class on the left (if present)
+
             res_file = os.path.join(RESULTS_DIR, image_list[int(sample_id)])
             with open(res_file + '.txt', 'w') as f:
                 for prob in trimmed_softmax_vector:

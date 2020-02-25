@@ -23,6 +23,7 @@ ZMQ_POST_WORK_TIMEOUT_S = os.getenv('CK_ZMQ_POST_WORK_TIMEOUT_S', '')   # empty 
 HUB_IP                  = os.getenv('CK_HUB_IP', 'localhost')
 JOBS_LIMIT              = int(os.getenv('CK_WORKER_JOB_LIMIT', 0))
 WORKER_ID               = os.getenv('CK_WORKER_ID') or os.getpid()
+WORKER_OUTPUT_FORMAT    = os.getenv('CK_WORKER_OUTPUT_FORMAT', 'softmax')
 
 ## Model properties:
 #
@@ -113,6 +114,7 @@ print('Model BGR colours: {}'.format(MODEL_COLOURS_BGR))
 print('Model max_batch_size: {}'.format(max_batch_size))
 print('Image transfer mode: {}'.format(TRANSFER_MODE))
 print('Images transferred need to be converted to input data type of the model: {}'.format(CONVERSION_NEEDED))
+print('Worker output format: {}'.format(WORKER_OUTPUT_FORMAT))
 print("")
 
 print("[worker {}] Ready to run inference on batches up to {} samples".format(WORKER_ID, max_batch_size))
@@ -189,17 +191,33 @@ with trt_engine.create_execution_context() as trt_context:
         floatize_time_ms            = (inference_start-floatize_start)*1000
         wait_and_receive_time_ms    = (floatize_start-wait_and_receive_start)*1000
 
-        if TRANSFER_MODE == 'dummy':        # no inference - fake the batch results
-            softmax_merged = [ 0 ]*1001*batch_size
-        else:
-            batch_results = h_output[:model_classes*batch_size].tolist()
-
-            if model_classes == 1:          # inference produces argmax - fake the softmax by padding with 1000 zeros (1001 overall)
-                softmax_merged = []
-                for arg_max in batch_results:
-                    softmax_merged.extend( [0]*(arg_max +1) + [1] + [0]*(1000-arg_max-1) )
+        if WORKER_OUTPUT_FORMAT == 'softmax':
+            if TRANSFER_MODE == 'dummy':        # no inference - fake a softmax batch
+                merged_batch_predictions = [ 0 ]*1001*batch_size
             else:
-                softmax_merged = batch_results
+                batch_results = h_output[:model_classes*batch_size].tolist()
+
+                if model_classes == 1:          # model returns argmax - fake the softmax by padding with 1000 zeros (1001 overall)
+                    merged_batch_predictions = []
+                    for arg_max in batch_results:
+                        merged_batch_predictions.extend( [0]*(arg_max +1) + [1] + [0]*(1000-arg_max-1) )
+                else:                           # model returns softmax - just pass it on
+                    merged_batch_predictions = batch_results
+
+        elif WORKER_OUTPUT_FORMAT == 'argmax':
+            if TRANSFER_MODE == 'dummy':        # no inference - fake an argmax batch
+                merged_batch_predictions = [ 0 ]*batch_size
+            else:
+                batch_results = h_output[:model_classes*batch_size].tolist()
+
+                if model_classes == 1:          # model returns argmax - just pass it on
+                    merged_batch_predictions = batch_results
+                else:                           # model returns softmax - filter it to return argmax
+                    merged_batch_predictions = []
+
+                    for j in range(batch_size): # walk through the batch and append individual argmaxen
+                        one_argmax = max(zip(batch_results[j*1001:(j+1)*1001], range(1001)))[1]-1
+                        merged_batch_predictions.append( one_argmax )
 
         response = {
             'job_id': job_id,
@@ -207,7 +225,7 @@ with trt_engine.create_execution_context() as trt_context:
             'wait_and_receive_time_ms': wait_and_receive_time_ms,
             'floatize_time_ms': floatize_time_ms,
             'inference_time_ms': inference_time_ms,
-            'raw_batch_results': softmax_merged,
+            'raw_batch_results': merged_batch_predictions,
         }
 
         to_funnel.send_json(response)
