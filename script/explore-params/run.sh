@@ -181,7 +181,7 @@ for id in ${ids[@]}; do
     --env.CK_HUB_IP=${hub_ip} \
     --env.CK_WORKER_ID=${worker_id} \
     --env.CK_WORKER_OUTPUT_FORMAT=${worker_output} \
-    --env.CK_ZMQ_POST_WORK_TIMEOUT_S=${postwork_timeout_s} \
+    --env.CK_WORKER_POSTWORK_TIMEOUT_S=${postwork_timeout_s} \
     --env.CK_FP_MODE=${fp_mode_tag} \
     --env.CK_ZMQ_TRANSFER_MODE=${transfer_mode} \
     --record --record_repo=local \
