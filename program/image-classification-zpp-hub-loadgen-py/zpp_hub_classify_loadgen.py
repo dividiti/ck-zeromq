@@ -35,8 +35,8 @@ LOADGEN_MULTISTREAMNESS     = os.getenv('CK_LOADGEN_MULTISTREAMNESS', '')   # if
 LOADGEN_MAX_DURATION_S      = os.getenv('CK_LOADGEN_MAX_DURATION_S', '')    # if not set, use value from LoadGen's config file, or LoadGen code
 LOADGEN_COUNT_OVERRIDE      = os.getenv('CK_LOADGEN_COUNT_OVERRIDE', '')
 LOADGEN_TARGET_QPS          = os.getenv('CK_LOADGEN_TARGET_QPS', '')        # Maps to differently named internal config options, depending on scenario - see below.
+LOADGEN_WARMUP_SAMPLES      = int(os.getenv('CK_LOADGEN_WARMUP_SAMPLES', '0'))
 BATCH_SIZE                  = int(os.getenv('CK_BATCH_SIZE', '1'))
-WORKER_WARMUP_SAMPLES       = int(os.getenv('CK_WORKER_WARMUP_SAMPLES', '0'))
 SIDELOAD_JSON               = os.getenv('CK_LOADGEN_SIDELOAD_JSON','')
 
 ## Model properties:
@@ -367,8 +367,8 @@ def benchmark_using_loadgen():
     funnel_should_be_running = True
     funnel_thread.start()
 
-    if WORKER_WARMUP_SAMPLES:
-        warmup_id_range = list(range(WORKER_WARMUP_SAMPLES))
+    if LOADGEN_WARMUP_SAMPLES:
+        warmup_id_range = list(range(LOADGEN_WARMUP_SAMPLES))
         load_query_samples(warmup_id_range)
 
         warmup_mode = True

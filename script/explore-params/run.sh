@@ -60,7 +60,7 @@ echo "- FP mode: ${fp_mode} (${fp_mode_tag})"
 
 # Number of samples to discard when warming up:
 # by default, use as many as the number of co-processors.
-warmup_samples=${CK_WORKER_WARMUP_SAMPLES:-${num_ids}}
+warmup_samples=${CK_LOADGEN_WARMUP_SAMPLES:-${num_ids}}
 echo "- warm-up samples: ${warmup_samples}"
 
 # Batch size.
@@ -210,7 +210,7 @@ ck benchmark program:${program} --repetitions=1 \
 --env.CK_LOADGEN_MODE=${mode} \
 --env.CK_LOADGEN_DATASET_SIZE=${dataset_size} \
 --env.CK_LOADGEN_BUFFER_SIZE=${buffer_size} \
---env.CK_LOADGEN_WARM_UP_SAMPLES=${warmup_samples} \
+--env.CK_LOADGEN_WARMUP_SAMPLES=${warmup_samples} \
 --env.CK_ZMQ_TRANSFER_MODE=${transfer_mode} \
 --env.CK_FP_MODE=${fp_mode_tag} \
 --env.CK_BATCH_SIZE=${batch_size} \
