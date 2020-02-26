@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-#import numpy as np
+import numpy as np
 import os
 import struct
 import time
@@ -38,7 +38,7 @@ MODEL_SOFTMAX_LAYER     = os.getenv('CK_ENV_ONNX_MODEL_OUTPUT_LAYER_NAME', os.ge
 #
 TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
 CONVERSION_NEEDED       = (os.getenv('CK_FP_MODE', 'NO') not in ('YES', 'yes', 'ON', 'on', '1')) and (MODEL_INPUT_DATA_TYPE == 'float32')
-CONVERT_TO_TYPE_CHAR    = 'f' if (MODEL_INPUT_DATA_TYPE == 'float32') else 'b'
+CONVERSION_TYPE_SYMBOL  = 'f' if (MODEL_INPUT_DATA_TYPE == 'float32') else 'b'
 ID_SIZE_IN_BYTES        = 4 # assuming uint32
 
 
@@ -115,8 +115,31 @@ print('Model max_batch_size: {}'.format(max_batch_size))
 print('Image transfer mode: {}'.format(TRANSFER_MODE))
 print('Images transferred need to be converted to input data type of the model: {}'.format(CONVERSION_NEEDED))
 print('Worker output format: {}'.format(WORKER_OUTPUT_FORMAT))
-print("")
 
+if CONVERSION_NEEDED:
+    compilation_start = time.time();
+
+    from pycuda.compiler import SourceModule
+    # Define type conversion kernels. NB: Must be done after initializing CUDA context.
+    conversion_module = SourceModule(source="""
+    // See all type converstion (cast) built-in functionshere:
+    // https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH__INTRINSIC__CAST.html
+    // Convert signed 8-bit integer to 32-bit floating-point using round-to-nearest-even mode.
+    __global__ void b2f(float * __restrict__ out, const signed char * __restrict__ in, long num_elems)
+    {
+        long idx = threadIdx.x + blockIdx.x * blockDim.x;
+        if (idx < num_elems)
+            out[idx] = __int2float_rn( (signed int) in[idx] );
+    }
+    """, cache_dir=False)
+
+    kernel_name = 'b2f' if CONVERSION_TYPE_SYMBOL == 'f' else None
+    conversion_kernel = conversion_module.get_function(kernel_name)
+
+    compilation_time_ms = (time.time() - compilation_start)*1000
+    print("Compilation time of type conversion kernel: {:.2f} ms".format(compilation_time_ms))
+
+print("")
 print("[worker {}] Ready to run inference on batches up to {} samples".format(WORKER_ID, max_batch_size))
 
 
@@ -147,6 +170,7 @@ with trt_engine.create_execution_context() as trt_context:
                                 done_count, WORKER_POSTWORK_TIMEOUT_S))
                 break
 
+        # FIXME: floatize -> conversion?
         floatize_start = time.time()
 
         converted_batch = None
@@ -169,8 +193,25 @@ with trt_engine.create_execution_context() as trt_context:
                 batch_size  = len(batch_data) // model_monopixels
 
             if not converted_batch:
-                if type(batch_data)==list or CONVERSION_NEEDED:
-                    converted_batch = struct.pack("{}{}".format(len(batch_data), CONVERT_TO_TYPE_CHAR), *batch_data)
+                if type(batch_data)==list:
+                    converted_batch = struct.pack("{}{}".format(len(batch_data), CONVERSION_TYPE_SYMBOL), *batch_data)
+                elif CONVERSION_NEEDED: # FIXME: Only pickle and numpy will get here. How about raw?
+                    # TODO: Read max dimensions from CUDA info. Currently taken from TX2.
+                    max_block_dim_x = 1024
+                    max_grid_dim_x = 2147483647
+                    max_x = max_block_dim_x * max_grid_dim_x
+                    # The kernel processes one element per thread, so we cannot exceed max_x elements.
+                    num_elems = len(batch_data)
+                    if num_elems >= max_x:
+                        print("Error: Number of elements exceeds max dimension X: {} >= {}".format(num_elems, max_x))
+                        pass
+                    # Copy input to the GPU.
+                    batch_data_gpu = cuda.mem_alloc(num_elems * dtype.itemsize)
+                    cuda.memcpy_htod_async(batch_data_gpu, batch_data, cuda_stream)
+                    # Convert on the GPU.
+                    block_dim_x = int( max_block_dim_x / 1 ) # TODO: Number of threads can be tuned down e.g. halved.
+                    grid_dim_x = int( (num_elems + block_dim_x - 1) / block_dim_x )
+                    conversion_kernel(d_inputs[0], batch_data_gpu, np.int64(num_elems), grid=(grid_dim_x,1,1), block=(block_dim_x,1,1))
                 else:
                     converted_batch = batch_data
 
@@ -181,7 +222,8 @@ with trt_engine.create_execution_context() as trt_context:
         inference_start = time.time()
 
         if TRANSFER_MODE != 'dummy':
-            cuda.memcpy_htod_async(d_inputs[0], converted_batch, cuda_stream)    # assuming one input layer for image classification
+            if not CONVERSION_NEEDED: # FIXME: Will this work for raw? Should work for pickle and numpy.
+                cuda.memcpy_htod_async(d_inputs[0], converted_batch, cuda_stream) # assuming one input layer for image classification
             trt_context.execute_async(bindings=model_bindings, batch_size=batch_size, stream_handle=cuda_stream.handle)
             for output in h_d_outputs:
                 cuda.memcpy_dtoh_async(output['host_mem'], output['dev_mem'], cuda_stream)
