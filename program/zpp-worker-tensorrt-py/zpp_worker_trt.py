@@ -156,7 +156,7 @@ with trt_engine.create_execution_context() as trt_context:
             if TRANSFER_MODE == 'dummy':
                 job_data_raw    = from_factory.recv()
             elif TRANSFER_MODE == 'raw':
-                job_data_raw    = from_factory.recv()
+                job_data_raw    = memoryview( from_factory.recv() )
             elif TRANSFER_MODE == 'json':
                 job_data_struct = from_factory.recv_json()
             elif TRANSFER_MODE in ('pickle', 'numpy'):
@@ -178,15 +178,15 @@ with trt_engine.create_execution_context() as trt_context:
             job_id, batch_size  = struct.unpack('ii', job_data_raw )
         else:
             if TRANSFER_MODE == 'raw':
-                num_raw_bytes   = len(job_data_raw)-ID_SIZE_IN_BYTES
+                job_id          = struct.unpack('<I', job_data_raw[:ID_SIZE_IN_BYTES])
+                batch_data      = job_data_raw[ID_SIZE_IN_BYTES:]
+                num_raw_bytes   = len(batch_data)
+
                 if CONVERSION_NEEDED:
-                    batch_data      = list( struct.unpack('i{}b'.format(num_raw_bytes), job_data_raw) )     # expensive
-                    job_id          = batch_data.pop(0)
-                    batch_size      = len(batch_data) // model_monopixels
+                    batch_size      = num_raw_bytes // model_monopixels
                 else:
-                    converted_batch = job_data_raw[ID_SIZE_IN_BYTES:]
-                    job_id          = struct.unpack('i', job_data_raw[:ID_SIZE_IN_BYTES] )[0]
-                    batch_size      = num_raw_bytes // model_input_type_size // model_monopixels
+                    converted_batch = batch_data
+                    batch_size      = num_raw_bytes // model_monopixels // model_input_type_size
             elif TRANSFER_MODE in ('json', 'pickle', 'numpy'):
                 job_id      = job_data_struct['job_id']
                 batch_data  = job_data_struct['batch_data']
