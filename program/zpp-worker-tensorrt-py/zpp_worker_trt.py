@@ -33,6 +33,14 @@ MODEL_COLOURS_BGR       = os.getenv('ML_MODEL_COLOUR_CHANNELS_BGR', 'NO') in ('Y
 MODEL_INPUT_DATA_TYPE   = os.getenv('ML_MODEL_INPUT_DATA_TYPE', 'float32')
 MODEL_DATA_TYPE         = os.getenv('ML_MODEL_DATA_TYPE', '(unknown)')
 MODEL_SOFTMAX_LAYER     = os.getenv('CK_ENV_ONNX_MODEL_OUTPUT_LAYER_NAME', os.getenv('CK_ENV_TENSORFLOW_MODEL_OUTPUT_LAYER_NAME', ''))
+MODEL_SUBTRACT_MEAN     = os.getenv('ML_MODEL_SUBTRACT_MEAN', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
+if MODEL_SUBTRACT_MEAN:
+    MODEL_GIVEN_CHANNEL_MEANS = os.getenv('ML_MODEL_GIVEN_CHANNEL_MEANS', '0.0 0.0 0.0')
+    means = [ np.float32(mean) for mean in MODEL_GIVEN_CHANNEL_MEANS.split() ]
+    if MODEL_COLOURS_BGR:
+        (B_mean, G_mean, R_mean) = means
+    else:
+        (R_mean, G_mean, B_mean) = means
 
 ## Transfer mode:
 #
@@ -122,21 +130,46 @@ if CONVERSION_NEEDED:
     compilation_start = time.time();
 
     from pycuda.compiler import SourceModule
-    # Define type conversion kernels. NB: Must be done after initializing CUDA context.
-    conversion_module = SourceModule(source="""
+    # Define type conversion kernels and more. NB: Must be done after initializing CUDA context.
+    source_module = SourceModule(source="""
     // See all type converstion (cast) built-in functionshere:
     // https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH__INTRINSIC__CAST.html
     // Convert signed 8-bit integer to 32-bit floating-point using round-to-nearest-even mode.
     __global__ void b2f(float * __restrict__ out, const signed char * __restrict__ in, long num_elems)
     {
         long idx = threadIdx.x + blockIdx.x * blockDim.x;
-        if (idx < num_elems)
-            out[idx] = __int2float_rn( (signed int) in[idx] );
+        if (idx >=  num_elems)
+            return;
+
+        out[idx] = __int2float_rn( (signed int) in[idx] );
+    }
+
+    // Subtract channel means. Assume NCHW layout. HW = H * W.
+    __global__ void subtract_means(float * data, float R_mean, float G_mean, float B_mean, long HW, long num_elems)
+    {
+        long idx = threadIdx.x + blockIdx.x * blockDim.x;
+        if (idx >= num_elems)
+            return;
+
+        switch ( (idx / HW) % 3 )
+        {
+            case 0:
+                data[idx] -= R_mean;
+                break;
+            case 1:
+                data[idx] -= G_mean;
+                break;
+            case 2:
+                data[idx] -= B_mean;
+                break;
+        }
     }
     """, cache_dir=False)
 
-    kernel_name = 'b2f' if CONVERSION_TYPE_SYMBOL == 'f' else None
-    conversion_kernel = conversion_module.get_function(kernel_name)
+    conversion_kernel_name = 'b2f' if CONVERSION_TYPE_SYMBOL == 'f' else None
+    conversion_kernel = source_module.get_function(conversion_kernel_name)
+
+    subtract_means_kernel = source_module.get_function('subtract_means')
 
     compilation_time_ms = (time.time() - compilation_start)*1000
     print("Compilation time of type conversion kernel: {:.2f} ms".format(compilation_time_ms))
@@ -223,6 +256,11 @@ with trt_engine.create_execution_context() as trt_context:
                 block_dim_x = int( max_block_dim_x / 1 ) # TODO: Number of threads can be tuned down e.g. halved.
                 grid_dim_x = int( (num_elems + block_dim_x - 1) / block_dim_x )
                 conversion_kernel(d_inputs[0], d_preconverted_input, np.int64(num_elems), grid=(grid_dim_x,1,1), block=(block_dim_x,1,1))
+                # Subtract on the GPU.
+                if MODEL_SUBTRACT_MEAN:
+                    # FIXME: Remove this re-definition once the means no longer get subtracted on the host side.
+                    (R_mean, G_mean, B_mean) = [ np.float32(mean) for mean in '0.0 0.0 0.0'.split() ]
+                    subtract_means_kernel(d_inputs[0], R_mean, G_mean, B_mean, np.int64(MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH), np.int64(num_elems), grid=(grid_dim_x,1,1), block=(block_dim_x,1,1))
 
         if batch_size > max_batch_size:   # basic protection. FIXME: could report to hub, could split and still do inference...
             print("[worker {}] unable to perform inference on {}-sample batch. Skipping it.".format(WORKER_ID, batch_size))
