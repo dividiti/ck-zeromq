@@ -15,7 +15,9 @@ import mlperf_loadgen as lg
 
 ###########################################################################################################
 ## NB: if you run into "zmq.error.ZMQError: Address already in use" after a crash,
-##     run "sudo netstat -ltnp | grep python" and kill the socket-hogging process.
+##     run
+##          kill `netstat -ltnp 2>/dev/null | grep python | grep 5557 | awk '{print $7}' | sed 's/\/.*//'`
+##     to stop the socket-hogging process.
 ###########################################################################################################
 
 

@@ -178,7 +178,7 @@ with trt_engine.create_execution_context() as trt_context:
             job_id, batch_size  = struct.unpack('ii', job_data_raw )
         else:
             if TRANSFER_MODE == 'raw':
-                job_id          = struct.unpack('<I', job_data_raw[:ID_SIZE_IN_BYTES])
+                job_id          = struct.unpack('<I', job_data_raw[:ID_SIZE_IN_BYTES])[0]
                 batch_data      = job_data_raw[ID_SIZE_IN_BYTES:]
                 num_raw_bytes   = len(batch_data)
 
