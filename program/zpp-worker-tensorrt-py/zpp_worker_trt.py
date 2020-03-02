@@ -36,11 +36,9 @@ MODEL_SOFTMAX_LAYER     = os.getenv('CK_ENV_ONNX_MODEL_OUTPUT_LAYER_NAME', os.ge
 MODEL_SUBTRACT_MEAN     = os.getenv('ML_MODEL_SUBTRACT_MEAN', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
 if MODEL_SUBTRACT_MEAN:
     MODEL_GIVEN_CHANNEL_MEANS = os.getenv('ML_MODEL_GIVEN_CHANNEL_MEANS', '0.0 0.0 0.0')
-    means = [ np.float32(mean) for mean in MODEL_GIVEN_CHANNEL_MEANS.split() ]
+    channel_means = np.fromstring(MODEL_GIVEN_CHANNEL_MEANS, dtype=np.float32, sep=' ')
     if MODEL_COLOURS_BGR:
-        (B_mean, G_mean, R_mean) = means
-    else:
-        (R_mean, G_mean, B_mean) = means
+        channel_means = channel_means[::-1]     # swapping Red and Blue colour channels
 
 ## Transfer mode:
 #
@@ -258,8 +256,9 @@ with trt_engine.create_execution_context() as trt_context:
                 conversion_kernel(d_inputs[0], d_preconverted_input, np.int64(num_elems), grid=(grid_dim_x,1,1), block=(block_dim_x,1,1))
                 # Subtract on the GPU.
                 if MODEL_SUBTRACT_MEAN:
-                    # FIXME: Remove this re-definition once the means no longer get subtracted on the host side.
-                    (R_mean, G_mean, B_mean) = [ np.float32(mean) for mean in '0.0 0.0 0.0'.split() ]
+                    (R_mean, G_mean, B_mean) = channel_means
+                    # FIXME: Remove this re-definition once the channel means no longer get subtracted on the host side.
+                    (R_mean, G_mean, B_mean) = ( np.float32(0), np.float32(0), np.float32(0) )
                     subtract_means_kernel(d_inputs[0], R_mean, G_mean, B_mean, np.int64(MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH), np.int64(num_elems), grid=(grid_dim_x,1,1), block=(block_dim_x,1,1))
 
         if batch_size > max_batch_size:   # basic protection. FIXME: could report to hub, could split and still do inference...
