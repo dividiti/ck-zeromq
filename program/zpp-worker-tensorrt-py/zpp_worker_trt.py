@@ -173,9 +173,9 @@ with trt_engine.create_execution_context() as trt_context:
         # FIXME: floatize -> conversion?
         floatize_start = time.time()
 
-        converted_batch = None
         if TRANSFER_MODE == 'dummy':
-            job_id, batch_size  = struct.unpack('ii', job_data_raw )
+            job_id, batch_size  = struct.unpack('ii', job_data_raw)
+            converted_batch = None
         else:
             if TRANSFER_MODE == 'raw':
                 job_id          = struct.unpack('<I', job_data_raw[:ID_SIZE_IN_BYTES])[0]
@@ -184,53 +184,59 @@ with trt_engine.create_execution_context() as trt_context:
 
                 if CONVERSION_NEEDED:
                     batch_size      = num_raw_bytes // model_monopixels
+                    converted_batch = None
                 else:
-                    converted_batch = batch_data
                     batch_size      = num_raw_bytes // model_monopixels // model_input_type_size
+                    converted_batch = batch_data
             elif TRANSFER_MODE in ('json', 'pickle', 'numpy'):
                 job_id      = job_data_struct['job_id']
                 batch_data  = job_data_struct['batch_data']
                 batch_size  = len(batch_data) // model_monopixels
-
-            if not converted_batch:
-                if type(batch_data)==list:
+                if type(batch_data)==list: # json
                     converted_batch = struct.pack("{}{}".format(len(batch_data), CONVERSION_TYPE_SYMBOL), *batch_data)
-                elif CONVERSION_NEEDED: # FIXME: Only pickle and numpy will get here. How about raw?
-                    # TODO: Read max dimensions from CUDA info. Currently taken from TX2.
-                    max_block_dim_x = 1024
-                    max_grid_dim_x = 2147483647
-                    max_x = max_block_dim_x * max_grid_dim_x
-                    # The kernel processes one element per thread, so we cannot exceed max_x elements.
-                    num_elems = len(batch_data)
-                    if num_elems >= max_x:
-                        print("Error: Number of elements exceeds max dimension X: {} >= {}".format(num_elems, max_x))
-                        pass
-                    # Copy input to the GPU.
-                    batch_data_gpu = cuda.mem_alloc(num_elems * dtype.itemsize)
-                    cuda.memcpy_htod_async(batch_data_gpu, batch_data, cuda_stream)
-                    # Convert on the GPU.
-                    block_dim_x = int( max_block_dim_x / 1 ) # TODO: Number of threads can be tuned down e.g. halved.
-                    grid_dim_x = int( (num_elems + block_dim_x - 1) / block_dim_x )
-                    conversion_kernel(d_inputs[0], batch_data_gpu, np.int64(num_elems), grid=(grid_dim_x,1,1), block=(block_dim_x,1,1))
+                elif CONVERSION_NEEDED: # pickle, numpy
+                    converted_batch = None
                 else:
                     converted_batch = batch_data
 
-        if batch_size>max_batch_size:   # basic protection. FIXME: could report to hub, could split and still do inference...
+            if converted_batch is not None:
+                memcpy_htod_start = time.time()
+                cuda.memcpy_htod_async(d_inputs[0], converted_batch, cuda_stream) # assuming one input layer for image classification
+                memcpy_htod_time_ms = (time.time() - memcpy_htod_start )*1000
+            else: # raw, pickle, numpy if CONVERSION_NEEDED
+                # TODO: Read max dimensions from CUDA info. Currently taken from TX2.
+                max_block_dim_x = 1024
+                max_grid_dim_x = 2147483647
+                max_x = max_block_dim_x * max_grid_dim_x
+                # The kernel processes one element per thread, so we cannot exceed max_x elements.
+                num_elems = len(batch_data)
+                if num_elems >= max_x:
+                    print("Error: Number of elements exceeds max dimension X: {} >= {}".format(num_elems, max_x))
+                    pass
+                # Copy input to the GPU.
+                memcpy_htod_start = time.time()
+                batch_data_gpu = cuda.mem_alloc(num_elems * dtype.itemsize)
+                cuda.memcpy_htod_async(batch_data_gpu, batch_data, cuda_stream)
+                memcpy_htod_time_ms = (time.time() - memcpy_htod_start )*1000
+                # Convert on the GPU.
+                block_dim_x = int( max_block_dim_x / 1 ) # TODO: Number of threads can be tuned down e.g. halved.
+                grid_dim_x = int( (num_elems + block_dim_x - 1) / block_dim_x )
+                conversion_kernel(d_inputs[0], batch_data_gpu, np.int64(num_elems), grid=(grid_dim_x,1,1), block=(block_dim_x,1,1))
+
+        if batch_size > max_batch_size:   # basic protection. FIXME: could report to hub, could split and still do inference...
             print("[worker {}] unable to perform inference on {}-sample batch. Skipping it.".format(WORKER_ID, batch_size))
             continue
 
         inference_start = time.time()
 
         if TRANSFER_MODE != 'dummy':
-            if not CONVERSION_NEEDED: # FIXME: Will this work for raw? Should work for pickle and numpy.
-                cuda.memcpy_htod_async(d_inputs[0], converted_batch, cuda_stream) # assuming one input layer for image classification
             trt_context.execute_async(bindings=model_bindings, batch_size=batch_size, stream_handle=cuda_stream.handle)
             for output in h_d_outputs:
                 cuda.memcpy_dtoh_async(output['host_mem'], output['dev_mem'], cuda_stream)
             cuda_stream.synchronize()
 
-        inference_time_ms           = (time.time() - inference_start)*1000
-        floatize_time_ms            = (inference_start-floatize_start)*1000
+        inference_time_ms           = (time.time() - inference_start)*1000 + memcpy_htod_time_ms
+        floatize_time_ms            = (inference_start-floatize_start)*1000 - memcpy_htod_time_ms
         wait_and_receive_time_ms    = (floatize_start-wait_and_receive_start)*1000
 
         if WORKER_OUTPUT_FORMAT == 'softmax':
