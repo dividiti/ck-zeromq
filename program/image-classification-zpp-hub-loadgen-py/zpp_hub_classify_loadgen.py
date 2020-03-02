@@ -207,17 +207,22 @@ def issue_queries(query_samples):
                 'batch_data': np.asarray(batch_vector_numpy),
             }
             to_workers.send_pyobj(job_data_struct)
-        else:
-            batch_vector_array  = batch_vector_numpy.tolist()
-            if TRANSFER_MODE == 'raw':
-                job_data_raw = struct.pack('<I{}{}'.format(len(batch_vector_array), TRANSFER_TYPE_CHAR), job_id, *batch_vector_array)
-                to_workers.send(job_data_raw)
-            elif TRANSFER_MODE == 'json':
-                job_data_struct = {
-                    'job_id': job_id,
-                    'batch_data': batch_vector_array,
-                }
-                to_workers.send_json(job_data_struct)
+        elif TRANSFER_MODE == 'raw':
+            ## Slower, but insensitive to endianness:
+            # batch_vector_list = batch_vector_numpy.tolist()
+            # job_data_raw = struct.pack('<I{}{}'.format(len(batch_vector_list), TRANSFER_TYPE_CHAR), job_id, *batch_vector_list)
+
+            ## Faster, but potentially sensitive to endianness:
+            batch_vector_array = np.asarray(batch_vector_numpy)
+            job_data_raw   = struct.pack('<I', job_id) + memoryview( batch_vector_array )
+
+            to_workers.send(job_data_raw)
+        elif TRANSFER_MODE == 'json':
+            job_data_struct = {
+                'job_id': job_id,
+                'batch_data': batch_vector_numpy.tolist(),
+            }
+            to_workers.send_json(job_data_struct)
 
         print("[fan] -> job_id={} {}".format(job_id, [qs.index for qs in batch]))
 
