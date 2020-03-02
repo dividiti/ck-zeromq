@@ -85,6 +85,8 @@ for interface_layer in trt_engine:
         d_inputs.append(dev_mem)
         model_input_shape       = shape
         model_input_type_size   = dtype.itemsize
+        if CONVERSION_NEEDED:
+            d_preconverted_input = cuda.mem_alloc(size * 1)
     else:
         interface_type = 'Output'
         host_mem    = cuda.pagelocked_empty(size, trt.nptype(dtype))
@@ -215,13 +217,12 @@ with trt_engine.create_execution_context() as trt_context:
                     pass
                 # Copy input to the GPU.
                 memcpy_htod_start = time.time()
-                batch_data_gpu = cuda.mem_alloc(num_elems * dtype.itemsize)
-                cuda.memcpy_htod_async(batch_data_gpu, batch_data, cuda_stream)
+                cuda.memcpy_htod_async(d_preconverted_input, batch_data, cuda_stream)
                 memcpy_htod_time_ms = (time.time() - memcpy_htod_start )*1000
                 # Convert on the GPU.
                 block_dim_x = int( max_block_dim_x / 1 ) # TODO: Number of threads can be tuned down e.g. halved.
                 grid_dim_x = int( (num_elems + block_dim_x - 1) / block_dim_x )
-                conversion_kernel(d_inputs[0], batch_data_gpu, np.int64(num_elems), grid=(grid_dim_x,1,1), block=(block_dim_x,1,1))
+                conversion_kernel(d_inputs[0], d_preconverted_input, np.int64(num_elems), grid=(grid_dim_x,1,1), block=(block_dim_x,1,1))
 
         if batch_size > max_batch_size:   # basic protection. FIXME: could report to hub, could split and still do inference...
             print("[worker {}] unable to perform inference on {}-sample batch. Skipping it.".format(WORKER_ID, batch_size))
