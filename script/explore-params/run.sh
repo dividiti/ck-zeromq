@@ -59,7 +59,11 @@ fi
 echo "- FP mode: ${fp_mode} (${fp_mode_tag})"
 
 # Preprocess on hub: NO, YES.
-preprocess_on_hub=${CK_PREPROCESS_ON_HUB:-NO}
+preprocess_on_hub=${CK_PREPROCESS_ON_HUB:-YES}
+if [ "${fp_mode}" = "YES" ] && [ "${preprocess_on_hub}" = "NO" ]; then
+  echo "WARNING: Forcing preprocessing on hub since tranferring in FP mode!"
+  preprocess_on_hub="YES"
+fi
 echo "- preprocess on hub: ${preprocess_on_hub}"
 
 # Number of samples to discard when warming up:
