@@ -69,7 +69,7 @@ TRANSFER_TYPE_NP, TRANSFER_TYPE_CHAR = (np.float32, 'f') if FP_MODE else (np.int
 
 ## Image normalization:
 #
-PREPROCESS_ON_HUB       = os.getenv('CK_PREPROCESS_ON_HUB', 'YES') in ('YES', 'yes', 'ON', 'on', '1')
+PREPROCESS_ON_HUB       = os.getenv('CK_PREPROCESS_ON_HUB', 'YES') in ('YES', 'yes', 'ON', 'on', '1') or FP_MODE
 MODEL_NORMALIZE_DATA    = os.getenv('ML_MODEL_NORMALIZE_DATA') in ('YES', 'yes', 'ON', 'on', '1')
 SUBTRACT_MEAN           = os.getenv('ML_MODEL_SUBTRACT_MEAN', 'YES') in ('YES', 'yes', 'ON', 'on', '1')
 GIVEN_CHANNEL_MEANS     = os.getenv('ML_MODEL_GIVEN_CHANNEL_MEANS', '')

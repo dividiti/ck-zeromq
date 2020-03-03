@@ -43,8 +43,10 @@ if MODEL_SUBTRACT_MEAN:
 ## Transfer mode:
 #
 TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
-CONVERSION_NEEDED       = (os.getenv('CK_FP_MODE', 'NO') not in ('YES', 'yes', 'ON', 'on', '1')) and (MODEL_INPUT_DATA_TYPE == 'float32')
+FP_MODE                 = os.getenv('CK_FP_MODE', 'NO') not in ('YES', 'yes', 'ON', 'on', '1')
+CONVERSION_NEEDED       = FP_MODE and (MODEL_INPUT_DATA_TYPE == 'float32')
 CONVERSION_TYPE_SYMBOL  = 'f' if (MODEL_INPUT_DATA_TYPE == 'float32') else 'b'
+PREPROCESS_ON_HUB       = os.getenv('CK_PREPROCESS_ON_HUB', 'NO') in ('YES', 'yes', 'ON', 'on', '1') or FP_MODE
 ID_SIZE_IN_BYTES        = 4 # assuming uint32
 
 
@@ -61,7 +63,7 @@ to_funnel = zmq_context.socket(zmq.PUSH)
 to_funnel.connect('tcp://{}:{}'.format(HUB_IP, ZMQ_FUNNEL_PORT))
 
 
-## CUDA/TRT model setup:
+## CUDA/TensorRT model setup:
 #
 pycuda_context = pycuda.tools.make_default_context()
 
@@ -122,6 +124,7 @@ print('Model BGR colours: {}'.format(MODEL_COLOURS_BGR))
 print('Model max_batch_size: {}'.format(max_batch_size))
 print('Image transfer mode: {}'.format(TRANSFER_MODE))
 print('Images transferred need to be converted to input data type of the model: {}'.format(CONVERSION_NEEDED))
+print('Images transferred need to be preprocessed (e.g. by subtracting means): {}'.format(not PREPROCESS_ON_HUB))
 print('Worker output format: {}'.format(WORKER_OUTPUT_FORMAT))
 
 if CONVERSION_NEEDED:
@@ -235,7 +238,7 @@ with trt_engine.create_execution_context() as trt_context:
             if converted_batch is not None:
                 memcpy_htod_start = time.time()
                 cuda.memcpy_htod_async(d_inputs[0], converted_batch, cuda_stream) # assuming one input layer for image classification
-                memcpy_htod_time_ms = (time.time() - memcpy_htod_start )*1000
+                memcpy_htod_time_ms = (time.time() - memcpy_htod_start)*1000
             else: # raw, pickle, numpy if CONVERSION_NEEDED
                 # TODO: Read max dimensions from CUDA info. Currently taken from TX2.
                 max_block_dim_x = 1024
@@ -254,12 +257,23 @@ with trt_engine.create_execution_context() as trt_context:
                 block_dim_x = int( max_block_dim_x / 1 ) # TODO: Number of threads can be tuned down e.g. halved.
                 grid_dim_x = int( (num_elems + block_dim_x - 1) / block_dim_x )
                 conversion_kernel(d_inputs[0], d_preconverted_input, np.int64(num_elems), grid=(grid_dim_x,1,1), block=(block_dim_x,1,1))
+
+                from pprint import pprint
+                h_inputs = np.zeros(shape=MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH*MODEL_IMAGE_CHANNELS, dtype=np.float32)
+                cuda.memcpy_dtoh_async(h_inputs, d_inputs[0], cuda_stream)
+                cuda_stream.synchronize()
+                pprint(h_inputs[2*MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH-1:2*MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH+1])
+
                 # Subtract on the GPU.
-                if MODEL_SUBTRACT_MEAN:
+                if MODEL_SUBTRACT_MEAN and not PREPROCESS_ON_HUB:
                     (R_mean, G_mean, B_mean) = channel_means
+                    pprint(channel_means)
                     # FIXME: Remove this re-definition once the channel means no longer get subtracted on the host side.
-                    (R_mean, G_mean, B_mean) = ( np.float32(0), np.float32(0), np.float32(0) )
+#                    (R_mean, G_mean, B_mean) = ( np.float32(0), np.float32(0), np.float32(0) )
                     subtract_means_kernel(d_inputs[0], R_mean, G_mean, B_mean, np.int64(MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH), np.int64(num_elems), grid=(grid_dim_x,1,1), block=(block_dim_x,1,1))
+                    cuda.memcpy_dtoh_async(h_inputs, d_inputs[0], cuda_stream)
+                    cuda_stream.synchronize()
+                    pprint(h_inputs[2*MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH-1:2*MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH+1])
 
         if batch_size > max_batch_size:   # basic protection. FIXME: could report to hub, could split and still do inference...
             print("[worker {}] unable to perform inference on {}-sample batch. Skipping it.".format(WORKER_ID, batch_size))

@@ -46,7 +46,7 @@ echo "- worker output: ${worker_output}"
 transfer_mode=${CK_ZMQ_TRANSFER_MODE:-numpy}
 echo "- transfer mode: ${transfer_mode}"
 
-# FP mode: NO, YES.
+# FP mode: YES, NO. NB: fp_mode_tag is no longer used.
 fp_mode=${CK_FP_MODE:-YES}
 if [ "${fp_mode}" = "YES" ]; then
   fp_mode_tag="yes"
@@ -57,6 +57,10 @@ else
   exit 1
 fi
 echo "- FP mode: ${fp_mode} (${fp_mode_tag})"
+
+# Preprocess on hub: NO, YES.
+preprocess_on_hub=${CK_PREPROCESS_ON_HUB:-NO}
+echo "- preprocess on hub: ${preprocess_on_hub}"
 
 # Number of samples to discard when warming up:
 # by default, use as many as the number of co-processors.
@@ -182,8 +186,9 @@ for id in ${ids[@]}; do
     --env.CK_WORKER_ID=${worker_id} \
     --env.CK_WORKER_OUTPUT_FORMAT=${worker_output} \
     --env.CK_WORKER_POSTWORK_TIMEOUT_S=${postwork_timeout_s} \
-    --env.CK_FP_MODE=${fp_mode_tag} \
+    --env.CK_PREPROCESS_ON_HUB=${preprocess_on_hub} \
     --env.CK_ZMQ_TRANSFER_MODE=${transfer_mode} \
+    --env.CK_FP_MODE=${fp_mode} \
     --record --record_repo=local \
     --record_uoa=${record_uoa}.${worker_id} \
     --tags=${record_tags},${worker_id} \
@@ -211,8 +216,9 @@ ck benchmark program:${program} --repetitions=1 \
 --env.CK_LOADGEN_DATASET_SIZE=${dataset_size} \
 --env.CK_LOADGEN_BUFFER_SIZE=${buffer_size} \
 --env.CK_LOADGEN_WARMUP_SAMPLES=${warmup_samples} \
+--env.CK_PREPROCESS_ON_HUB=${preprocess_on_hub} \
 --env.CK_ZMQ_TRANSFER_MODE=${transfer_mode} \
---env.CK_FP_MODE=${fp_mode_tag} \
+--env.CK_FP_MODE=${fp_mode} \
 --env.CK_BATCH_SIZE=${batch_size} \
 ${MULTISTREAMNESS} \
 ${TARGET_QPS} \
