@@ -33,9 +33,9 @@ MODEL_IMAGE_WIDTH       = int(os.getenv('ML_MODEL_MODEL_IMAGE_WIDTH',
                               os.getenv('CK_ENV_TENSORFLOW_MODEL_IMAGE_WIDTH',
                               ''))))
 
-## Transfer mode (raw floats by default):
+## Transfer mode (numpy floats by default):
 #
-TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
+TRANSFER_MODE           = os.getenv('CK_TRANSFER_MODE', 'numpy')
 TRANSFER_FLOAT          = (os.getenv('CK_TRANSFER_FLOAT', 'YES') in ('YES', 'yes', 'ON', 'on', '1')) and (MODEL_INPUT_DATA_TYPE == 'float32')
 TRANSFER_TYPE_NP, TRANSFER_TYPE_SYMBOL = (np.float32, 'f') if TRANSFER_FLOAT else (np.int8, 'b')
 

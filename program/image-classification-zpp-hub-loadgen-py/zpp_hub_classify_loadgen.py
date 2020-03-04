@@ -61,10 +61,10 @@ MODEL_IMAGE_CHANNELS    = 3
 MODEL_SOFTMAX_LAYER     = os.getenv('CK_ENV_ONNX_MODEL_OUTPUT_LAYER_NAME', os.getenv('CK_ENV_TENSORFLOW_MODEL_OUTPUT_LAYER_NAME', ''))
 
 
-## Data transfer:
+## Data transfer (numpy floats by default):
 #
-TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'json')
-TRANSFER_FLOAT          = (os.getenv('CK_TRANSFER_FLOAT', 'NO') in ('YES', 'yes', 'ON', 'on', '1')) and (MODEL_INPUT_DATA_TYPE == 'float32')
+TRANSFER_MODE           = os.getenv('CK_TRANSFER_MODE', 'numpy')
+TRANSFER_FLOAT          = (os.getenv('CK_TRANSFER_FLOAT', 'YES') in ('YES', 'yes', 'ON', 'on', '1')) and (MODEL_INPUT_DATA_TYPE == 'float32')
 TRANSFER_TYPE_NP, TRANSFER_TYPE_SYMBOL = (np.float32, 'f') if TRANSFER_FLOAT else (np.int8, 'b')
 
 ## Image normalization:

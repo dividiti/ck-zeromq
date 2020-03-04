@@ -40,9 +40,9 @@ if MODEL_SUBTRACT_MEAN:
     if MODEL_COLOURS_BGR:
         channel_means = channel_means[::-1]     # swapping Red and Blue colour channels
 
-## Transfer mode (raw floats by default):
+## Transfer mode (numpy floats by default):
 #
-TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
+TRANSFER_MODE           = os.getenv('CK_TRANSFER_MODE', 'numpy')
 TRANSFER_FLOAT          = os.getenv('CK_TRANSFER_FLOAT', 'YES') in ('YES', 'yes', 'ON', 'on', '1')
 PREPROCESS_ON_GPU       = not TRANSFER_FLOAT and os.getenv('CK_PREPROCESS_ON_GPU', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
 CONVERSION_NEEDED       = not TRANSFER_FLOAT and (MODEL_INPUT_DATA_TYPE == 'float32')
