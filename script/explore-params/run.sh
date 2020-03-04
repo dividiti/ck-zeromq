@@ -109,11 +109,9 @@ echo "- buffer size: ${buffer_size}"
 # number of samples of 24,576).
 target_qps=${CK_LOADGEN_TARGET_QPS:-70}
 if [ "${mode}" = "PerformanceOnly" ]; then
-  TARGET_QPS="--env.CK_LOADGEN_TARGET_QPS=${target_qps}"
-fi
-if [ "${scenario}" == "MultiStream" ]; then
-  echo "Warning: TARGET_QPS must not be overriden in the MultiStream scenario!"
-  TARGET_QPS=""
+  if [ "${scenario}" == "SingleStream" ] || [ "${scenario}" == "Offline" ]; then
+    TARGET_QPS="--env.CK_LOADGEN_TARGET_QPS=${target_qps}"
+  fi
 fi
 echo "- target QPS (queries per second): ${target_qps} ('${TARGET_QPS}')"
 
