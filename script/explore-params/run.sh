@@ -120,6 +120,7 @@ echo "- target QPS (queries per second): ${target_qps} ('${TARGET_QPS}')"
 multistreamness=${CK_LOADGEN_MULTISTREAMNESS:-1}
 if [ "${scenario}" = "MultiStream" ]; then
   MULTISTREAMNESS="--env.CK_LOADGEN_MULTISTREAMNESS=${multistreamness}"
+  # FIXME: By default, set to the product of the number of workers and the batch size.
 fi
 echo "- multistreamness: ${multistreamness} ('${MULTISTREAMNESS}')"
 
