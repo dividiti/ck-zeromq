@@ -43,7 +43,7 @@ worker_output=${CK_WORKER_OUTPUT_FORMAT:-argmax}
 echo "- worker output: ${worker_output}"
 
 # Transfer mode: raw, json, pickle, numpy.
-transfer_mode=${CK_ZMQ_TRANSFER_MODE:-numpy}
+transfer_mode=${CK_TRANSFER_MODE:-numpy}
 echo "- transfer mode: ${transfer_mode}"
 
 # Transfer as floats or as 8-bit integers: YES/NO.
@@ -181,7 +181,7 @@ for id in ${ids[@]}; do
     --env.CK_WORKER_ID=${worker_id} \
     --env.CK_WORKER_OUTPUT_FORMAT=${worker_output} \
     --env.CK_WORKER_POSTWORK_TIMEOUT_S=${postwork_timeout_s} \
-    --env.CK_ZMQ_TRANSFER_MODE=${transfer_mode} \
+    --env.CK_TRANSFER_MODE=${transfer_mode} \
     --env.CK_TRANSFER_FLOAT=${transfer_float} \
     --env.CK_PREPROCESS_ON_GPU=${preprocess_on_gpu} \
     --record --record_repo=local \
@@ -211,7 +211,7 @@ ck benchmark program:${program} --repetitions=1 \
 --env.CK_LOADGEN_DATASET_SIZE=${dataset_size} \
 --env.CK_LOADGEN_BUFFER_SIZE=${buffer_size} \
 --env.CK_LOADGEN_WARMUP_SAMPLES=${warmup_samples} \
---env.CK_ZMQ_TRANSFER_MODE=${transfer_mode} \
+--env.CK_TRANSFER_MODE=${transfer_mode} \
 --env.CK_TRANSFER_FLOAT=${transfer_float} \
 --env.CK_PREPROCESS_ON_GPU=${preprocess_on_gpu} \
 --env.CK_BATCH_SIZE=${batch_size} \
