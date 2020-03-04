@@ -33,11 +33,11 @@ MODEL_IMAGE_WIDTH       = int(os.getenv('ML_MODEL_MODEL_IMAGE_WIDTH',
                               os.getenv('CK_ENV_TENSORFLOW_MODEL_IMAGE_WIDTH',
                               ''))))
 
-## Transfer mode:
+## Transfer mode (raw floats by default):
 #
 TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
-FP_MODE                 = (os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')) and (MODEL_INPUT_DATA_TYPE == 'float32')
-TRANSFER_TYPE_NP, TRANSFER_TYPE_CHAR = (np.float32, 'f') if FP_MODE else (np.int8, 'b')
+TRANSFER_FLOAT          = (os.getenv('CK_TRANSFER_FLOAT', 'YES') in ('YES', 'yes', 'ON', 'on', '1')) and (MODEL_INPUT_DATA_TYPE == 'float32')
+TRANSFER_TYPE_NP, TRANSFER_TYPE_SYMBOL = (np.float32, 'f') if TRANSFER_FLOAT else (np.int8, 'b')
 
 SLEEP_AFTER_SEND_MS     = int(os.getenv('CK_SLEEP_AFTER_SEND_MS', 0))
 
@@ -183,7 +183,7 @@ def fan_code():
         else:
             batch_vector_array  = batch_vector_numpy.tolist()
             if TRANSFER_MODE == 'raw':
-                job_data_raw = struct.pack('<I{}{}'.format(len(batch_vector_array), TRANSFER_TYPE_CHAR), job_id, *batch_vector_array)
+                job_data_raw = struct.pack('<I{}{}'.format(len(batch_vector_array), TRANSFER_TYPE_SYMBOL), job_id, *batch_vector_array)
                 to_workers.send(job_data_raw)
             elif TRANSFER_MODE == 'json':
                 job_data_struct = {

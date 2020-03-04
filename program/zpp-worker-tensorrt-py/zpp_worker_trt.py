@@ -43,9 +43,9 @@ if MODEL_SUBTRACT_MEAN:
 ## Transfer mode (raw floats by default):
 #
 TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
-FP_MODE                 = os.getenv('CK_FP_MODE', 'YES') in ('YES', 'yes', 'ON', 'on', '1') # TODO: Rename to TRANSFER_FLOAT
-PREPROCESS_ON_GPU       = not FP_MODE and os.getenv('CK_PREPROCESS_ON_GPU', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
-CONVERSION_NEEDED       = not FP_MODE and (MODEL_INPUT_DATA_TYPE == 'float32')
+TRANSFER_FLOAT          = os.getenv('CK_TRANSFER_FLOAT', 'YES') in ('YES', 'yes', 'ON', 'on', '1')
+PREPROCESS_ON_GPU       = not TRANSFER_FLOAT and os.getenv('CK_PREPROCESS_ON_GPU', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
+CONVERSION_NEEDED       = not TRANSFER_FLOAT and (MODEL_INPUT_DATA_TYPE == 'float32')
 CONVERSION_TYPE_SYMBOL  = 'f' if (MODEL_INPUT_DATA_TYPE == 'float32') else 'b'
 ID_SIZE_IN_BYTES        = 4 # assuming uint32
 

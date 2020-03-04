@@ -46,22 +46,14 @@ echo "- worker output: ${worker_output}"
 transfer_mode=${CK_ZMQ_TRANSFER_MODE:-numpy}
 echo "- transfer mode: ${transfer_mode}"
 
-# FP mode: YES, NO. NB: fp_mode_tag is no longer used.
-fp_mode=${CK_FP_MODE:-YES}
-if [ "${fp_mode}" = "YES" ]; then
-  fp_mode_tag="yes"
-elif [ "${fp_mode}" = "NO" ]; then
-  fp_mode_tag="no"
-else
-  echo "ERROR: Unsupported FP mode '${fp_mode}'!"
-  exit 1
-fi
-echo "- FP mode: ${fp_mode} (${fp_mode_tag})"
+# Transfer as floats or as 8-bit integers: YES/NO.
+transfer_float=${CK_TRANSFER_FLOAT:-YES}
+echo "- transfer float: ${transfer_float}"
 
-# Preprocess on GPU: NO, YES.
+# Preprocess on GPU: YES/NO.
 preprocess_on_gpu=${CK_PREPROCESS_ON_GPU:-NO}
-if [ "${fp_mode}" = "YES" ] && [ "${preprocess_on_gpu}" = "YES" ]; then
-  echo "WARNING: Forcing not to preprocess on GPU since transferring in FP mode!"
+if [ "${transfer_float}" = "YES" ] && [ "${preprocess_on_gpu}" = "YES" ]; then
+  echo "WARNING: Forcing not to preprocess on GPU since transferring float!"
   preprocess_on_gpu="NO"
 fi
 echo "- preprocess on GPU: ${preprocess_on_gpu}"
@@ -190,9 +182,9 @@ for id in ${ids[@]}; do
     --env.CK_WORKER_ID=${worker_id} \
     --env.CK_WORKER_OUTPUT_FORMAT=${worker_output} \
     --env.CK_WORKER_POSTWORK_TIMEOUT_S=${postwork_timeout_s} \
-    --env.CK_PREPROCESS_ON_GPU=${preprocess_on_gpu} \
     --env.CK_ZMQ_TRANSFER_MODE=${transfer_mode} \
-    --env.CK_FP_MODE=${fp_mode} \
+    --env.CK_TRANSFER_FLOAT=${transfer_float} \
+    --env.CK_PREPROCESS_ON_GPU=${preprocess_on_gpu} \
     --record --record_repo=local \
     --record_uoa=${record_uoa}.${worker_id} \
     --tags=${record_tags},${worker_id} \
@@ -220,9 +212,9 @@ ck benchmark program:${program} --repetitions=1 \
 --env.CK_LOADGEN_DATASET_SIZE=${dataset_size} \
 --env.CK_LOADGEN_BUFFER_SIZE=${buffer_size} \
 --env.CK_LOADGEN_WARMUP_SAMPLES=${warmup_samples} \
---env.CK_PREPROCESS_ON_GPU=${preprocess_on_gpu} \
 --env.CK_ZMQ_TRANSFER_MODE=${transfer_mode} \
---env.CK_FP_MODE=${fp_mode} \
+--env.CK_TRANSFER_FLOAT=${transfer_float} \
+--env.CK_PREPROCESS_ON_GPU=${preprocess_on_gpu} \
 --env.CK_BATCH_SIZE=${batch_size} \
 ${MULTISTREAMNESS} \
 ${TARGET_QPS} \

@@ -48,7 +48,6 @@
     }
   }, 
   "run_vars": {
-    "CK_FP_MODE": "YES",
     "CK_WORKER_ID": "",
     "CK_WORKER_JOB_LIMIT": 0,
     "CK_WORKER_OUTPUT_FORMAT": "softmax",
@@ -56,7 +55,9 @@
     "CK_HUB_IP": "localhost",
     "CK_ZMQ_FAN_PORT": 5557,
     "CK_ZMQ_FUNNEL_PORT": 5558,
-    "CK_ZMQ_TRANSFER_MODE": "numpy"
+    "CK_ZMQ_TRANSFER_MODE": "numpy",
+    "CK_TRANSFER_FLOAT": "YES",
+    "CK_PREPROCESS_ON_GPU": "NO"
   }, 
   "tags": [
     "image-classification", 
