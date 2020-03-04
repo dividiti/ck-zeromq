@@ -40,13 +40,13 @@ if MODEL_SUBTRACT_MEAN:
     if MODEL_COLOURS_BGR:
         channel_means = channel_means[::-1]     # swapping Red and Blue colour channels
 
-## Transfer mode:
+## Transfer mode (raw floats by default):
 #
 TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'raw')
-FP_MODE                 = os.getenv('CK_FP_MODE', 'NO') not in ('YES', 'yes', 'ON', 'on', '1')
-CONVERSION_NEEDED       = FP_MODE and (MODEL_INPUT_DATA_TYPE == 'float32')
+FP_MODE                 = os.getenv('CK_FP_MODE', 'YES') in ('YES', 'yes', 'ON', 'on', '1') # TODO: Rename to TRANSFER_FLOAT
+PREPROCESS_ON_GPU       = not FP_MODE and os.getenv('CK_PREPROCESS_ON_GPU', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
+CONVERSION_NEEDED       = not FP_MODE and (MODEL_INPUT_DATA_TYPE == 'float32')
 CONVERSION_TYPE_SYMBOL  = 'f' if (MODEL_INPUT_DATA_TYPE == 'float32') else 'b'
-PREPROCESS_ON_HUB       = os.getenv('CK_PREPROCESS_ON_HUB', 'NO') in ('YES', 'yes', 'ON', 'on', '1') or FP_MODE
 ID_SIZE_IN_BYTES        = 4 # assuming uint32
 
 
@@ -123,8 +123,8 @@ print('Model (internal) data type: {}'.format(MODEL_DATA_TYPE))
 print('Model BGR colours: {}'.format(MODEL_COLOURS_BGR))
 print('Model max_batch_size: {}'.format(max_batch_size))
 print('Image transfer mode: {}'.format(TRANSFER_MODE))
-print('Images transferred need to be converted to input data type of the model: {}'.format(CONVERSION_NEEDED))
-print('Images transferred need to be preprocessed (e.g. by subtracting means): {}'.format(not PREPROCESS_ON_HUB))
+print('Transferred images need to be converted to the input data type of the model: {}'.format(CONVERSION_NEEDED))
+print('Transferred images need to be preprocessed (e.g. by subtracting means): {}'.format(PREPROCESS_ON_GPU))
 print('Worker output format: {}'.format(WORKER_OUTPUT_FORMAT))
 
 if CONVERSION_NEEDED:
@@ -136,13 +136,23 @@ if CONVERSION_NEEDED:
     // See all type converstion (cast) built-in functionshere:
     // https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH__INTRINSIC__CAST.html
     // Convert signed 8-bit integer to 32-bit floating-point using round-to-nearest-even mode.
-    __global__ void b2f(float * __restrict__ out, const signed char * __restrict__ in, long num_elems)
+    __global__ void int8_to_fp32(float * __restrict__ out, const signed char * __restrict__ in, long num_elems)
     {
         long idx = threadIdx.x + blockIdx.x * blockDim.x;
         if (idx >=  num_elems)
             return;
 
         out[idx] = __int2float_rn( (signed int) in[idx] );
+    }
+
+    // Convert unsigned 8-bit integer to 32-bit floating-point using round-to-nearest-even mode.
+    __global__ void uint8_to_fp32(float * __restrict__ out, const unsigned char * __restrict__ in, long num_elems)
+    {
+        long idx = threadIdx.x + blockIdx.x * blockDim.x;
+        if (idx >=  num_elems)
+            return;
+
+        out[idx] = __int2float_rn( (unsigned int) in[idx] );
     }
 
     // Subtract channel means. Assume NCHW layout. HW = H * W.
@@ -167,13 +177,17 @@ if CONVERSION_NEEDED:
     }
     """, cache_dir=False)
 
-    conversion_kernel_name = 'b2f' if CONVERSION_TYPE_SYMBOL == 'f' else None
-    conversion_kernel = source_module.get_function(conversion_kernel_name)
+    if PREPROCESS_ON_GPU:
+        subtract_means_kernel = source_module.get_function('subtract_means')
 
-    subtract_means_kernel = source_module.get_function('subtract_means')
+        conversion_kernel_name = 'uint8_to_fp32' if CONVERSION_TYPE_SYMBOL == 'f' else None
+        conversion_kernel = source_module.get_function(conversion_kernel_name)
+    else:
+        conversion_kernel_name = 'int8_to_fp32' if CONVERSION_TYPE_SYMBOL == 'f' else None
+        conversion_kernel = source_module.get_function(conversion_kernel_name)
 
     compilation_time_ms = (time.time() - compilation_start)*1000
-    print("Compilation time of type conversion kernel: {:.2f} ms".format(compilation_time_ms))
+    print("Compilation time of GPU kernel(s): {:.2f} ms".format(compilation_time_ms))
 
 print("")
 print("[worker {}] Ready to run inference on batches up to {} samples".format(WORKER_ID, max_batch_size))
@@ -258,22 +272,11 @@ with trt_engine.create_execution_context() as trt_context:
                 grid_dim_x = int( (num_elems + block_dim_x - 1) / block_dim_x )
                 conversion_kernel(d_inputs[0], d_preconverted_input, np.int64(num_elems), grid=(grid_dim_x,1,1), block=(block_dim_x,1,1))
 
-                from pprint import pprint
-                h_inputs = np.zeros(shape=MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH*MODEL_IMAGE_CHANNELS, dtype=np.float32)
-                cuda.memcpy_dtoh_async(h_inputs, d_inputs[0], cuda_stream)
-                cuda_stream.synchronize()
-                pprint(h_inputs[2*MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH-1:2*MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH+1])
-
-                # Subtract on the GPU.
-                if MODEL_SUBTRACT_MEAN and not PREPROCESS_ON_HUB:
-                    (R_mean, G_mean, B_mean) = channel_means
-                    pprint(channel_means)
-                    # FIXME: Remove this re-definition once the channel means no longer get subtracted on the host side.
-#                    (R_mean, G_mean, B_mean) = ( np.float32(0), np.float32(0), np.float32(0) )
-                    subtract_means_kernel(d_inputs[0], R_mean, G_mean, B_mean, np.int64(MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH), np.int64(num_elems), grid=(grid_dim_x,1,1), block=(block_dim_x,1,1))
-                    cuda.memcpy_dtoh_async(h_inputs, d_inputs[0], cuda_stream)
-                    cuda_stream.synchronize()
-                    pprint(h_inputs[2*MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH-1:2*MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH+1])
+                if PREPROCESS_ON_GPU:
+                    if MODEL_SUBTRACT_MEAN:
+                        (R_mean, G_mean, B_mean) = channel_means
+                        subtract_means_kernel(d_inputs[0], R_mean, G_mean, B_mean, np.int64(MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH), np.int64(num_elems), grid=(grid_dim_x,1,1), block=(block_dim_x,1,1))
+                    # TODO: Implement other transforms e.g. normalization.
 
         if batch_size > max_batch_size:   # basic protection. FIXME: could report to hub, could split and still do inference...
             print("[worker {}] unable to perform inference on {}-sample batch. Skipping it.".format(WORKER_ID, batch_size))
@@ -338,4 +341,3 @@ with trt_engine.create_execution_context() as trt_context:
     print("[worker {}] Total inference time: {}s".format(WORKER_ID, total_inference_time))
 
 pycuda_context.pop()
-

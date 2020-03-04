@@ -58,13 +58,13 @@ else
 fi
 echo "- FP mode: ${fp_mode} (${fp_mode_tag})"
 
-# Preprocess on hub: NO, YES.
-preprocess_on_hub=${CK_PREPROCESS_ON_HUB:-YES}
-if [ "${fp_mode}" = "YES" ] && [ "${preprocess_on_hub}" = "NO" ]; then
-  echo "WARNING: Forcing preprocessing on hub since transferring in FP mode!"
-  preprocess_on_hub="YES"
+# Preprocess on GPU: NO, YES.
+preprocess_on_gpu=${CK_PREPROCESS_ON_GPU:-NO}
+if [ "${fp_mode}" = "YES" ] && [ "${preprocess_on_gpu}" = "YES" ]; then
+  echo "WARNING: Forcing not to preprocess on GPU since transferring in FP mode!"
+  preprocess_on_gpu="NO"
 fi
-echo "- preprocess on hub: ${preprocess_on_hub}"
+echo "- preprocess on GPU: ${preprocess_on_gpu}"
 
 # Number of samples to discard when warming up:
 # by default, use as many as the number of co-processors.
@@ -190,7 +190,7 @@ for id in ${ids[@]}; do
     --env.CK_WORKER_ID=${worker_id} \
     --env.CK_WORKER_OUTPUT_FORMAT=${worker_output} \
     --env.CK_WORKER_POSTWORK_TIMEOUT_S=${postwork_timeout_s} \
-    --env.CK_PREPROCESS_ON_HUB=${preprocess_on_hub} \
+    --env.CK_PREPROCESS_ON_GPU=${preprocess_on_gpu} \
     --env.CK_ZMQ_TRANSFER_MODE=${transfer_mode} \
     --env.CK_FP_MODE=${fp_mode} \
     --record --record_repo=local \
@@ -220,7 +220,7 @@ ck benchmark program:${program} --repetitions=1 \
 --env.CK_LOADGEN_DATASET_SIZE=${dataset_size} \
 --env.CK_LOADGEN_BUFFER_SIZE=${buffer_size} \
 --env.CK_LOADGEN_WARMUP_SAMPLES=${warmup_samples} \
---env.CK_PREPROCESS_ON_HUB=${preprocess_on_hub} \
+--env.CK_PREPROCESS_ON_GPU=${preprocess_on_gpu} \
 --env.CK_ZMQ_TRANSFER_MODE=${transfer_mode} \
 --env.CK_FP_MODE=${fp_mode} \
 --env.CK_BATCH_SIZE=${batch_size} \

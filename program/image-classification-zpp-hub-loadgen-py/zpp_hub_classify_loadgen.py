@@ -65,11 +65,11 @@ MODEL_SOFTMAX_LAYER     = os.getenv('CK_ENV_ONNX_MODEL_OUTPUT_LAYER_NAME', os.ge
 #
 TRANSFER_MODE           = os.getenv('CK_ZMQ_TRANSFER_MODE', 'json')
 FP_MODE                 = (os.getenv('CK_FP_MODE', 'NO') in ('YES', 'yes', 'ON', 'on', '1')) and (MODEL_INPUT_DATA_TYPE == 'float32')
-TRANSFER_TYPE_NP, TRANSFER_TYPE_CHAR = (np.float32, 'f') if FP_MODE else (np.int8, 'b')
+TRANSFER_TYPE_NP, TRANSFER_TYPE_SYMBOL = (np.float32, 'f') if FP_MODE else (np.int8, 'b')
 
 ## Image normalization:
 #
-PREPROCESS_ON_HUB       = os.getenv('CK_PREPROCESS_ON_HUB', 'YES') in ('YES', 'yes', 'ON', 'on', '1') or FP_MODE
+PREPROCESS_ON_GPU       = not FP_MODE and os.getenv('CK_PREPROCESS_ON_GPU', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
 MODEL_NORMALIZE_DATA    = os.getenv('ML_MODEL_NORMALIZE_DATA') in ('YES', 'yes', 'ON', 'on', '1')
 SUBTRACT_MEAN           = os.getenv('ML_MODEL_SUBTRACT_MEAN', 'YES') in ('YES', 'yes', 'ON', 'on', '1')
 GIVEN_CHANNEL_MEANS     = os.getenv('ML_MODEL_GIVEN_CHANNEL_MEANS', '')
@@ -136,7 +136,10 @@ def load_query_samples(sample_indices):     # 0-based indices in our whole datas
         img = np.fromfile(img_filename, IMAGE_DATA_TYPE)
         img = img.reshape((MODEL_IMAGE_HEIGHT, MODEL_IMAGE_WIDTH, MODEL_IMAGE_CHANNELS))
 
-        if PREPROCESS_ON_HUB:
+        if PREPROCESS_ON_GPU:
+            nhwc_img = img if MODEL_DATA_LAYOUT == 'NHWC' else img.transpose(2,0,1)
+            preprocessed_image_buffer[sample_index] = np.array(nhwc_img).ravel() # transfer bytes and unsigned
+        else:
             if MODEL_COLOURS_BGR:
                 img = img[...,::-1]     # swapping Red and Blue colour channels
 
@@ -157,9 +160,9 @@ def load_query_samples(sample_indices):     # 0-based indices in our whole datas
             if MODEL_INPUT_DATA_TYPE == 'int8' or TRANSFER_TYPE_NP == np.int8:
                 img = np.clip(img, -128, 127)
 
-        nhwc_img = img if MODEL_DATA_LAYOUT == 'NHWC' else img.transpose(2,0,1)
+            nhwc_img = img if MODEL_DATA_LAYOUT == 'NHWC' else img.transpose(2,0,1)
+            preprocessed_image_buffer[sample_index] = np.array(nhwc_img).ravel().astype(TRANSFER_TYPE_NP) # transfer bytes as signed
 
-        preprocessed_image_buffer[sample_index] = np.array(nhwc_img).ravel().astype(TRANSFER_TYPE_NP)
         tick('l')
     print('')
 
@@ -213,7 +216,7 @@ def issue_queries(query_samples):
         elif TRANSFER_MODE == 'raw':
             ## Slower, but insensitive to endianness:
             # batch_vector_list = batch_vector_numpy.tolist()
-            # job_data_raw = struct.pack('<I{}{}'.format(len(batch_vector_list), TRANSFER_TYPE_CHAR), job_id, *batch_vector_list)
+            # job_data_raw = struct.pack('<I{}{}'.format(len(batch_vector_list), TRANSFER_TYPE_SYMBOL), job_id, *batch_vector_list)
 
             ## Faster, but potentially sensitive to endianness:
             batch_vector_array = np.asarray(batch_vector_numpy)
