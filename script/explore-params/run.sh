@@ -28,10 +28,31 @@ echo "- timestamp: ${timestamp}"
 hub_ip=${CK_HUB_IP:-"192.168.1.102"}
 echo "- hub IP: ${hub_ip}"
 
-# Use parentheses to interpret the string as an array.
-ids=(${CK_WORKER_IDS:-1})
-num_ids=${#ids[@]}
-echo "- ${num_ids} worker(s): ${ids[@]}"
+# Workers can be defined in two ways:
+# (1) As a list of N IPs. Worker IDs get derived as a sequence from 1 to N.
+# (2) As a list of N IDs. Worker IPs get derived as a sequence of 192.168.1.<ID+1>.
+ips=( ${CK_WORKER_IPS:-""} ) # use parentheses to interpret the string as an array
+if [[ "${ips}" ]] # (1)
+then
+  num_ips=${#ips[@]}
+  ids=( $(seq 1 ${num_ips}) )
+  num_ids=${#ids[@]}
+else # (2)
+  ids=( ${CK_WORKER_IDS:-1} )
+  num_ids=${#ids[@]}
+  ips=( )
+  for id in ${ids[@]}; do
+    id_plus_1=$((id+1))
+    ips+=( "192.168.1.10${id_plus_1}" )
+  done
+  num_ips=${#ips[@]}
+fi
+echo "- ${num_ips} worker IP(s): ${ips[@]}"
+echo "- ${num_ids} worker ID(s): ${ids[@]}"
+if [[ ${num_ips} != ${num_ids} ]]; then
+  echo "ERROR: ${num_ips} not equal to ${num_ids}!"
+  exit 1
+fi
 
 # Time each worker should wait after last received work-item before exiting.
 postwork_timeout_s=${CK_WORKER_POSTWORK_TIMEOUT_S:-10}
@@ -164,19 +185,19 @@ echo "- record tags: ${record_tags}"
 # Blank line before printing commands.
 echo
 
+# Skip existing experiments if requested.
 if (ck find experiment:${record_uoa} >/dev/null) && [[ "${skip_existing}" ]]; then
   echo "Experiment '${record_uoa}' already exists, skipping ..."
   exit 0
 fi
 
-
 # Launch the worker programs.
-for id in ${ids[@]}; do
+for i in $(seq 1 ${#ips[@]}); do
+  ip=${ips[${i}-1]}
+  id=${ids[${i}-1]}
   worker_id="worker-${id}"
-  id_plus_1=$((id+1))
-  worker_ip="192.168.1.10${id_plus_1}"
   read -d '' CMD <<END_OF_CMD
-  ssh -n -f ${USER}@${worker_ip} \
+  ssh -n -f ${USER}@${ip} \
   "bash -c 'nohup \
     ck benchmark program:zpp-worker-tensorrt-py --repetitions=1 \
     --dep_add_tags.weights=converted-from-onnx,maxbatch.20,fp16 \
