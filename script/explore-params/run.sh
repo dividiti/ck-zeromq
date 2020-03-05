@@ -125,18 +125,18 @@ if [ "${mode}" = "PerformanceOnly" ]; then
 fi
 echo "- count override: ${count_override} ('${COUNT_OVERRIDE}')"
 
-# In the MultiStream scenario, affects the number of streams that LoadGen issues
-# (aiming to meet the target latency of 50 ms).
-multistreamness=${CK_LOADGEN_MULTISTREAMNESS:-1}
-if [ "${scenario}" = "MultiStream" ]; then
-  MULTISTREAMNESS="--env.CK_LOADGEN_MULTISTREAMNESS=${multistreamness}"
-  # FIXME: By default, set to the product of the number of workers and the batch size.
-fi
-echo "- multistreamness: ${multistreamness} ('${MULTISTREAMNESS}')"
-
 # Batch size.
 batch_size=${CK_BATCH_SIZE:-1}
 echo "- batch size: ${batch_size}"
+
+# In the MultiStream scenario, affects the number of streams that LoadGen issues
+# (aiming to meet the target latency of 50 ms).
+# By default, set to the product of the number of workers and the batch size.
+multistreamness=${CK_LOADGEN_MULTISTREAMNESS:-$((${num_ids} * ${batch_size}))}
+if [ "${scenario}" = "MultiStream" ]; then
+  MULTISTREAMNESS="--env.CK_LOADGEN_MULTISTREAMNESS=${multistreamness}"
+fi
+echo "- multistreamness: ${multistreamness} ('${MULTISTREAMNESS}')"
 
 # Prepare record UOA and tags.
 mlperf="mlperf"
