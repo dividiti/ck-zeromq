@@ -135,7 +135,9 @@ if CONVERSION_NEEDED:
     // See all type converstion (cast) built-in functionshere:
     // https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH__INTRINSIC__CAST.html
     // Convert signed 8-bit integer to 32-bit floating-point using round-to-nearest-even mode.
-    __global__ void int8_to_fp32(float * __restrict__ out, const signed char * __restrict__ in, long num_elems)
+    __global__ void int8_to_fp32(
+        float * __restrict__ out, const signed char * __restrict__ in, long num_elems
+    )
     {
         long idx = threadIdx.x + blockIdx.x * blockDim.x;
         if (idx >=  num_elems)
@@ -145,7 +147,9 @@ if CONVERSION_NEEDED:
     }
 
     // Convert unsigned 8-bit integer to 32-bit floating-point using round-to-nearest-even mode.
-    __global__ void uint8_to_fp32(float * __restrict__ out, const unsigned char * __restrict__ in, long num_elems)
+    __global__ void uint8_to_fp32(
+        float * __restrict__ out, const unsigned char * __restrict__ in, long num_elems
+    )
     {
         long idx = threadIdx.x + blockIdx.x * blockDim.x;
         if (idx >=  num_elems)
@@ -154,8 +158,12 @@ if CONVERSION_NEEDED:
         out[idx] = __int2float_rn( (unsigned int) in[idx] );
     }
 
-    // Subtract channel means. Assume NCHW layout. HW = H * W.
-    __global__ void subtract_means(float * data, float R_mean, float G_mean, float B_mean, long HW, long num_elems)
+    // Subtract channel means assuming NCHW layout.
+    __global__ void subtract_means(float * data,
+        float R_mean, float G_mean, float B_mean,
+        long HW, // H*W
+        long num_elems // N*C*H*W
+    )
     {
         long idx = threadIdx.x + blockIdx.x * blockDim.x;
         if (idx >= num_elems)
@@ -174,15 +182,47 @@ if CONVERSION_NEEDED:
                 break;
         }
     }
+
+    // Convert unsigned 8-bit integer to 32-bit floating-point using round-to-nearest-even mode,
+    // and then subtract RGB channel means assuming NCHW layout.
+    __global__ void convert_uint8_to_fp32_and_subtract_means(
+        float * __restrict__ out, const unsigned char * __restrict__ in,
+        float R_mean, float G_mean, float B_mean,
+        long HW, // H*W
+        long num_elems // N*C*H*W
+    )
+    {
+        long idx = threadIdx.x + blockIdx.x * blockDim.x;
+        if (idx >= num_elems)
+            return;
+
+        // Convert.
+        out[idx] = __int2float_rn( (unsigned int) in[idx] );
+
+        // Subtract means.
+        switch ( (idx / HW) % 3 )
+        {
+            case 0:
+                out[idx] -= R_mean;
+                break;
+            case 1:
+                out[idx] -= G_mean;
+                break;
+            case 2:
+                out[idx] -= B_mean;
+                break;
+        }
+    }
     """, cache_dir=False)
 
-    if PREPROCESS_ON_GPU:
-        subtract_means_kernel = source_module.get_function('subtract_means')
-
-        conversion_kernel_name = 'uint8_to_fp32' if CONVERSION_TYPE_SYMBOL == 'f' else None
+    if PREPROCESS_ON_GPU and MODEL_SUBTRACT_MEAN:
+        conversion_kernel_name = 'convert_uint8_to_fp32_and_subtract_means' if CONVERSION_TYPE_SYMBOL == 'f' else None
         conversion_kernel = source_module.get_function(conversion_kernel_name)
-    else:
-        conversion_kernel_name = 'int8_to_fp32' if CONVERSION_TYPE_SYMBOL == 'f' else None
+#        subtract_means_kernel = source_module.get_function('subtract_means')
+#        conversion_kernel_name = 'convert_uint8_to_fp32' if CONVERSION_TYPE_SYMBOL == 'f' else None
+#        conversion_kernel = source_module.get_function(conversion_kernel_name)
+    elif not PREPROCESS_ON_GPU:
+        conversion_kernel_name = 'convert_int8_to_fp32' if CONVERSION_TYPE_SYMBOL == 'f' else None
         conversion_kernel = source_module.get_function(conversion_kernel_name)
 
     compilation_time_ms = (time.time() - compilation_start)*1000
@@ -266,16 +306,18 @@ with trt_engine.create_execution_context() as trt_context:
                 memcpy_htod_start = time.time()
                 cuda.memcpy_htod_async(d_preconverted_input, batch_data, cuda_stream)
                 memcpy_htod_time_ms = (time.time() - memcpy_htod_start )*1000
-                # Convert on the GPU.
-                block_dim_x = int( max_block_dim_x / 1 ) # TODO: Number of threads can be tuned down e.g. halved.
+                # One thread per element. TODO: Number of threads can be tuned down e.g. halved.
+                block_dim_x = int( max_block_dim_x / 1 )
                 grid_dim_x = int( (num_elems + block_dim_x - 1) / block_dim_x )
-                conversion_kernel(d_inputs[0], d_preconverted_input, np.int64(num_elems), grid=(grid_dim_x,1,1), block=(block_dim_x,1,1))
-
                 if PREPROCESS_ON_GPU:
                     if MODEL_SUBTRACT_MEAN:
                         (R_mean, G_mean, B_mean) = channel_means
-                        subtract_means_kernel(d_inputs[0], R_mean, G_mean, B_mean, np.int64(MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH), np.int64(num_elems), grid=(grid_dim_x,1,1), block=(block_dim_x,1,1))
+                        conversion_kernel(d_inputs[0], d_preconverted_input,
+                            R_mean, G_mean, B_mean, np.int64(MODEL_IMAGE_HEIGHT*MODEL_IMAGE_WIDTH), np.int64(num_elems), grid=(grid_dim_x,1,1), block=(block_dim_x,1,1))
                     # TODO: Implement other transforms e.g. normalization.
+                else:
+                    conversion_kernel(d_inputs[0], d_preconverted_input, np.int64(num_elems), grid=(grid_dim_x,1,1), block=(block_dim_x,1,1))
+
 
         if batch_size > max_batch_size:   # basic protection. FIXME: could report to hub, could split and still do inference...
             print("[worker {}] unable to perform inference on {}-sample batch. Skipping it.".format(WORKER_ID, batch_size))
