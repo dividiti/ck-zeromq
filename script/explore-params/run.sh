@@ -63,10 +63,6 @@ echo "- preprocess on GPU: ${preprocess_on_gpu}"
 warmup_samples=${CK_LOADGEN_WARMUP_SAMPLES:-${num_ids}}
 echo "- warm-up samples: ${warmup_samples}"
 
-# Batch size.
-batch_size=${CK_BATCH_SIZE:-1}
-echo "- batch size: ${batch_size}"
-
 # LoadGen scenario: MultiStream, SingleStream, Offline.
 scenario=${CK_LOADGEN_SCENARIO:-MultiStream}
 if [ "${scenario}" = "MultiStream" ]; then
@@ -115,15 +111,6 @@ if [ "${mode}" = "PerformanceOnly" ]; then
 fi
 echo "- target QPS (queries per second): ${target_qps} ('${TARGET_QPS}')"
 
-# In the MultiStream scenario, affects the number of streams that LoadGen issues
-# (aiming to meet the target latency of 50 ms).
-multistreamness=${CK_LOADGEN_MULTISTREAMNESS:-1}
-if [ "${scenario}" = "MultiStream" ]; then
-  MULTISTREAMNESS="--env.CK_LOADGEN_MULTISTREAMNESS=${multistreamness}"
-  # FIXME: By default, set to the product of the number of workers and the batch size.
-fi
-echo "- multistreamness: ${multistreamness} ('${MULTISTREAMNESS}')"
-
 # Allow to override the number of queries in the PerformanceOnly mode.
 # FIXME: Only override when TARGET_QPS is not explicitly defined?
 # By default, use 6! (6 factorial), which is evenly
@@ -133,6 +120,19 @@ if [ "${mode}" = "PerformanceOnly" ]; then
   COUNT_OVERRIDE="--env.CK_LOADGEN_COUNT_OVERRIDE=${count_override}"
 fi
 echo "- count override: ${count_override} ('${COUNT_OVERRIDE}')"
+
+# In the MultiStream scenario, affects the number of streams that LoadGen issues
+# (aiming to meet the target latency of 50 ms).
+multistreamness=${CK_LOADGEN_MULTISTREAMNESS:-1}
+if [ "${scenario}" = "MultiStream" ]; then
+  MULTISTREAMNESS="--env.CK_LOADGEN_MULTISTREAMNESS=${multistreamness}"
+  # FIXME: By default, set to the product of the number of workers and the batch size.
+fi
+echo "- multistreamness: ${multistreamness} ('${MULTISTREAMNESS}')"
+
+# Batch size.
+batch_size=${CK_BATCH_SIZE:-1}
+echo "- batch size: ${batch_size}"
 
 # Prepare record UOA and tags.
 mlperf="mlperf"
