@@ -44,11 +44,10 @@ if MODEL_SUBTRACT_MEAN:
 #
 TRANSFER_MODE           = os.getenv('CK_TRANSFER_MODE', 'numpy')
 TRANSFER_FLOAT          = os.getenv('CK_TRANSFER_FLOAT', 'YES') in ('YES', 'yes', 'ON', 'on', '1')
-PREPROCESS_ON_GPU       = not TRANSFER_FLOAT and os.getenv('CK_PREPROCESS_ON_GPU', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
-CONVERSION_NEEDED       = not TRANSFER_FLOAT and (MODEL_INPUT_DATA_TYPE == 'float32')
+PREPROCESS_ON_GPU       = (TRANSFER_FLOAT == False) and (TRANSFER_MODE != 'json') and os.getenv('CK_PREPROCESS_ON_GPU', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
+CONVERSION_NEEDED       = (TRANSFER_FLOAT == False) and (MODEL_INPUT_DATA_TYPE == 'float32')
 CONVERSION_TYPE_SYMBOL  = 'f' if (MODEL_INPUT_DATA_TYPE == 'float32') else 'b'
 ID_SIZE_IN_BYTES        = 4 # assuming uint32
-
 
 ## ZeroMQ communication setup:
 #
