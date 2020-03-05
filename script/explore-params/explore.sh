@@ -49,7 +49,7 @@ for ids in "${list_of_ids[@]}"; do
   for batch_size in "${batch_sizes[@]}"; do
     for transfer_mode in "${transfer_modes[@]}"; do
       for transfer_float in "${transfer_floats[@]}"; do
-        if [ "${transfer_float}" = "YES" ]; then
+        if [ "${transfer_float}" = "YES" ] || [ "${transfer_mode}" = "json" ] ; then
           preprocess_on_gpu_list=("NO")
 	else
           preprocess_on_gpu_list=("NO" "YES")

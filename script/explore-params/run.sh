@@ -52,8 +52,12 @@ echo "- transfer float: ${transfer_float}"
 
 # Preprocess on GPU: YES/NO.
 preprocess_on_gpu=${CK_PREPROCESS_ON_GPU:-NO}
-if [ "${transfer_float}" = "YES" ] && [ "${preprocess_on_gpu}" = "YES" ]; then
+if [ "${preprocess_on_gpu}" = "YES" ] && [ "${transfer_float}" = "YES" ]; then
   echo "WARNING: Forcing not to preprocess on GPU since transferring float!"
+  preprocess_on_gpu="NO"
+fi
+if [ "${preprocess_on_gpu}" = "YES" ] && [ "${transfer_mode}" = "json" ]; then
+  echo "WARNING: Forcing not to preprocess on GPU since transferring json!"
   preprocess_on_gpu="NO"
 fi
 echo "- preprocess on GPU: ${preprocess_on_gpu}"
