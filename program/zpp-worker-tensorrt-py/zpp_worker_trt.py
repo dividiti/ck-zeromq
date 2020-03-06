@@ -135,7 +135,7 @@ if CONVERSION_NEEDED:
     // See all type converstion (cast) built-in functionshere:
     // https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH__INTRINSIC__CAST.html
     // Convert signed 8-bit integer to 32-bit floating-point using round-to-nearest-even mode.
-    __global__ void int8_to_fp32(
+    __global__ void convert_int8_to_fp32(
         float * __restrict__ out, const signed char * __restrict__ in, long num_elems
     )
     {
@@ -147,7 +147,7 @@ if CONVERSION_NEEDED:
     }
 
     // Convert unsigned 8-bit integer to 32-bit floating-point using round-to-nearest-even mode.
-    __global__ void uint8_to_fp32(
+    __global__ void convert_uint8_to_fp32(
         float * __restrict__ out, const unsigned char * __restrict__ in, long num_elems
     )
     {
