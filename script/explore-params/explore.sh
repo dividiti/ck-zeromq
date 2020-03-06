@@ -6,11 +6,15 @@ echo "ZeroMQ Push-Pull exploration!"
 dry_run=${CK_DRY_RUN:-""}
 echo "- dry run: ${dry_run}"
 
+# Time each worker should wait after last received work-item before exiting.
+postwork_timeout_s=${CK_WORKER_POSTWORK_TIMEOUT_S:-10}
+echo "- postwork timeout: ${postwork_timeout_s} s"
+
 # Directory where run.sh is (may not be the current one in the future).
 script_dir=`ck find ck-zeromq:script:explore-params`
 
 # LoadGen mode: PerformanceOnly, AccuracyOnly.
-mode=${CK_LOADGEN_MODE:-AccuracyOnly}
+mode=${CK_LOADGEN_MODE:-PerformanceOnly}
 if [ "${mode}" = "PerformanceOnly" ]; then
   mode_tag="performance"
   dataset_size=${CK_LOADGEN_DATASET_SIZE:-1024}
@@ -68,6 +72,7 @@ CK_DRY_RUN=${dry_run} \
 CK_LOADGEN_MODE=${mode} \
 CK_LOADGEN_DATASET_SIZE=${dataset_size} \
 CK_LOADGEN_BUFFER_SIZE=${buffer_size} \
+CK_WORKER_POSTWORK_TIMEOUT_S=${postwork_timeout_s} \
 CK_WORKER_IDS="${ids}" \
 CK_BATCH_SIZE=${batch_size} \
 CK_TRANSFER_MODE=${transfer_mode} \
