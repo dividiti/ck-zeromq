@@ -7,9 +7,12 @@
     "shared": "git",
     "url": "git@github.com:dividiti/ck-zeromq.git",
     "repo_deps": [
-        {
-            "repo_uoa": "ck-tensorrt"
-        }
+      {
+        "repo_uoa": "ck-tensorrt"
+      },
+      {
+        "repo_uoa": "ck-mlperf"
+      }
     ]
   }
 }
