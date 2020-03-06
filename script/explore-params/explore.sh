@@ -2,6 +2,10 @@
 
 echo "ZeroMQ Push-Pull exploration!"
 
+# Dry run - print commands but do not execute them.
+dry_run=${CK_DRY_RUN:-""}
+echo "- dry run: ${dry_run}"
+
 # Directory where run.sh is (may not be the current one in the future).
 script_dir=`ck find ck-zeromq:script:explore-params`
 
@@ -60,6 +64,7 @@ for ids in "${list_of_ids[@]}"; do
             experiment_id=$((${experiment_id}+1))
             read -d '' CMD <<END_OF_CMD
             cd ${script_dir};
+            CK_DRY_RUN=${dry_run} \
             CK_LOADGEN_MODE=${mode} \
             CK_LOADGEN_DATASET_SIZE=${dataset_size} \
             CK_LOADGEN_BUFFER_SIZE=${buffer_size} \
@@ -71,7 +76,9 @@ for ids in "${list_of_ids[@]}"; do
             ./run.sh
 END_OF_CMD
             echo ${CMD}
-            eval ${CMD}
+            if [ -z "${dry_run}" ]; then
+              eval ${CMD}
+	    fi
             echo
 	done # preprocess on gpu
       done # transfer float
@@ -79,5 +86,9 @@ END_OF_CMD
   done # batch size
 done # ids
 
-echo "[`date`] Done."
+if [ -z "${dry_run}" ]; then
+  echo "[`date`] Done."
+else
+  echo "[`date`] Done (dry run)."
+fi
 echo
