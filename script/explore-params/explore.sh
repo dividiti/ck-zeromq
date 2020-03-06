@@ -63,17 +63,17 @@ for ids in "${list_of_ids[@]}"; do
             echo "[`date`] Experiment #${experiment_id}: ..."
             experiment_id=$((${experiment_id}+1))
             read -d '' CMD <<END_OF_CMD
-            cd ${script_dir};
-            CK_DRY_RUN=${dry_run} \
-            CK_LOADGEN_MODE=${mode} \
-            CK_LOADGEN_DATASET_SIZE=${dataset_size} \
-            CK_LOADGEN_BUFFER_SIZE=${buffer_size} \
-            CK_WORKER_IDS="${ids}" \
-            CK_BATCH_SIZE=${batch_size} \
-            CK_TRANSFER_MODE=${transfer_mode} \
-            CK_TRANSFER_FLOAT=${transfer_float} \
-            CK_PREPROCESS_ON_GPU=${preprocess_on_gpu} \
-            ./run.sh
+cd ${script_dir};
+CK_DRY_RUN=${dry_run} \
+CK_LOADGEN_MODE=${mode} \
+CK_LOADGEN_DATASET_SIZE=${dataset_size} \
+CK_LOADGEN_BUFFER_SIZE=${buffer_size} \
+CK_WORKER_IDS="${ids}" \
+CK_BATCH_SIZE=${batch_size} \
+CK_TRANSFER_MODE=${transfer_mode} \
+CK_TRANSFER_FLOAT=${transfer_float} \
+CK_PREPROCESS_ON_GPU=${preprocess_on_gpu} \
+./run.sh
 END_OF_CMD
             echo ${CMD}
             if [ -z "${dry_run}" ]; then
