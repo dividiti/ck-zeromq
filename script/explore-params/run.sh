@@ -137,10 +137,11 @@ fi
 echo "- target QPS (queries per second): ${target_qps} ('${TARGET_QPS}')"
 
 # Allow to override the number of queries in the PerformanceOnly mode.
-# FIXME: Only override when TARGET_QPS is not explicitly defined?
-# By default, use 6! (6 factorial), which is evenly
-# divisible between any number of co-processors 1-6.
-count_override=${CK_LOADGEN_COUNT_OVERRIDE:-720}
+# By default, use 1440=720*2:
+# - 720==6! (6 factorial) is evenly divisible between any number of co-processors 1-6.
+# - 1200==60*20 is the minimum number of 50 ms queries to meet the minimum duration of 60 ms.
+# - 1440 > 1200.
+count_override=${CK_LOADGEN_COUNT_OVERRIDE:-1440}
 if [ "${mode}" = "PerformanceOnly" ]; then
   COUNT_OVERRIDE="--env.CK_LOADGEN_COUNT_OVERRIDE=${count_override}"
 fi

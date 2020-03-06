@@ -61,7 +61,7 @@ for ids in "${list_of_ids[@]}"; do
         fi
         for preprocess_on_gpu in "${preprocess_on_gpu_list[@]}"; do
             echo "[`date`] Experiment #${experiment_id}: ..."
-            experiment_id=$((${experiment_id}+1))
+            experiment_id=$(( ${experiment_id}+1 ))
             read -d '' CMD <<END_OF_CMD
 cd ${script_dir};
 CK_DRY_RUN=${dry_run} \
