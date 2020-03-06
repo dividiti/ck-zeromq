@@ -5,32 +5,33 @@ echo "ZeroMQ Push-Pull exploration!"
 # Directory where run.sh is (may not be the current one in the future).
 script_dir=`ck find ck-zeromq:script:explore-params`
 
-# Define the exploration space.
-
 # LoadGen mode: PerformanceOnly, AccuracyOnly.
 mode=${CK_LOADGEN_MODE:-AccuracyOnly}
 if [ "${mode}" = "PerformanceOnly" ]; then
   mode_tag="performance"
-  dataset_size=1024
-  buffer_size=1024
+  dataset_size=${CK_LOADGEN_DATASET_SIZE:-1024}
+  buffer_size=${CK_LOADGEN_BUFFER_SIZE:-1024}
 elif [ "${mode}" = "AccuracyOnly" ]; then
   mode_tag="accuracy"
-  dataset_size=500
-  buffer_size=500
+  imagenet_size=50000
+  dataset_size=${CK_LOADGEN_DATASET_SIZE:-${imagenet_size}}
+  buffer_size=${CK_LOADGEN_BUFFER_SIZE:-500}
 else
   echo "ERROR: Unsupported LoadGen mode '${mode}'!"
   exit 1
 fi
 echo "- mode: ${mode} (${mode_tag})"
+echo "- dataset size: ${dataset_size}"
+echo "- buffer size: ${buffer_size}"
 
+# Define the exploration space.
 if [ "${mode_tag}" = "accuracy" ]; then
   list_of_ids=("3")
   batch_sizes=(1)
 else
-  list_of_ids=("1" "2" "2 3 4 5 6 1")
+  list_of_ids=("1" "3" "1 3")
   batch_sizes=($(seq 1 4))
 fi
-
 echo "- worker ids:  [ ${list_of_ids[@]} ]"
 echo "- batch sizes: [ ${batch_sizes[@]} ]"
 
