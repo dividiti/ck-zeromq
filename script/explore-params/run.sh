@@ -83,9 +83,9 @@ if [ "${preprocess_on_gpu}" = "YES" ] && [ "${transfer_mode}" = "json" ]; then
 fi
 echo "- preprocess on GPU: ${preprocess_on_gpu}"
 
-# Number of samples to discard when warming up:
-# by default, use as many as the number of co-processors.
-warmup_samples=${CK_LOADGEN_WARMUP_SAMPLES:-${num_ids}}
+# Number of warming up samples to be discarded.
+# By default, set to the product of the number of co-processors and the batch size.
+warmup_samples=${CK_LOADGEN_WARMUP_SAMPLES:-$((${num_ids} * ${batch_size}))}
 echo "- warm-up samples: ${warmup_samples}"
 
 # LoadGen scenario: MultiStream, SingleStream, Offline.
