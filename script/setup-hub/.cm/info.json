@@ -1,0 +1,15 @@
+{
+  "backup_data_uid": "c03619b7c49c5a52",
+  "backup_module_uid": "84e27ad9dd12e734",
+  "backup_module_uoa": "script",
+  "control": {
+    "engine": "CK",
+    "iso_datetime": "2020-03-09T21:14:06.029449",
+    "version": [
+      "1",
+      "12",
+      "2"
+    ]
+  },
+  "data_name": "setup-hub"
+}
