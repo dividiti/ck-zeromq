@@ -12,7 +12,7 @@ echo
 
 # Refresh CK-ZeroMQ and its dependencies.
 echo "Refreshing CK-ZeroMQ ..."
-ck pull repo:ck-zeromq
+ck pull repo:ck-zeromq --url=https://github.com/dividiti/ck-zeromq
 exit_if_error
 
 ## Set up Python, NumPy, PyZMQ.
