@@ -83,11 +83,6 @@ if [ "${preprocess_on_gpu}" = "YES" ] && [ "${transfer_mode}" = "json" ]; then
 fi
 echo "- preprocess on GPU: ${preprocess_on_gpu}"
 
-# Number of warming up samples to be discarded.
-# By default, set to the product of the number of co-processors and the batch size.
-warmup_samples=${CK_LOADGEN_WARMUP_SAMPLES:-$((${num_ids} * ${batch_size}))}
-echo "- warm-up samples: ${warmup_samples}"
-
 # LoadGen scenario: MultiStream, SingleStream, Offline.
 scenario=${CK_LOADGEN_SCENARIO:-MultiStream}
 if [ "${scenario}" = "MultiStream" ]; then
@@ -159,6 +154,11 @@ if [ "${scenario}" = "MultiStream" ]; then
   MULTISTREAMNESS="--env.CK_LOADGEN_MULTISTREAMNESS=${multistreamness}"
 fi
 echo "- multistreamness: ${multistreamness} ('${MULTISTREAMNESS}')"
+
+# Number of warming up samples to be discarded.
+# By default, set to the product of the number of workers and the batch size.
+warmup_samples=${CK_LOADGEN_WARMUP_SAMPLES:-$((${num_ids} * ${batch_size}))}
+echo "- warm-up samples: ${warmup_samples}"
 
 # Prepare record UOA and tags.
 mlperf="mlperf"
