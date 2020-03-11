@@ -202,7 +202,7 @@ for i in $(seq 1 ${#ips[@]}); do
   "bash -c 'nohup \
     ck benchmark program:zpp-worker-tensorrt-py --repetitions=1 \
     --dep_add_tags.weights=converted-from-onnx,maxbatch.20,fp16 \
-    --dep_add_tags.lib-python-tensorrt=v5 \
+    --dep_add_tags.lib-python-tensorrt=python-package,tensorrt \
     --env.CK_HUB_IP=${hub_ip} \
     --env.CK_WORKER_ID=${worker_id} \
     --env.CK_WORKER_OUTPUT_FORMAT=${worker_output} \
