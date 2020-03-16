@@ -303,7 +303,6 @@ with trt_engine.create_execution_context() as trt_context:
                     converted_batch = batch_data
 
             if converted_batch is not None:
-                print("converted_batch is not None: {}".format(converted_batch))
                 memcpy_htod_start = time.time()
                 cuda.memcpy_htod_async(d_inputs[0], converted_batch, cuda_stream) # assuming one input layer for image classification
                 memcpy_htod_time_ms = (time.time() - memcpy_htod_start)*1000
@@ -354,12 +353,6 @@ with trt_engine.create_execution_context() as trt_context:
             merged_batch_predictions = [ 0 ] * output_volume * batch_size
         else:
             batch_results = h_output[:output_volume * batch_size].tolist()
-
-            i = 0
-            for flt in batch_results:
-                i+=1
-                print(flt, end=', ' if i%7 else '\n')
-            print("")
 
             if WORKER_OUTPUT_FORMAT == 'direct_return':
                 merged_batch_predictions = batch_results
