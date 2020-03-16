@@ -184,6 +184,14 @@ echo "- multistreamness: ${multistreamness} ('${MULTISTREAMNESS}')"
 warmup_samples=${CK_LOADGEN_WARMUP_SAMPLES:-$((${num_ids} * ${batch_size}))}
 echo "- warm-up samples: ${warmup_samples}"
 
+# Maximum batch size that the TensorRT model supports.
+maxbatch=${CK_WEIGHTS_MAXBATCH:-20}
+echo "- weights maxbatch: ${maxbatch}"
+
+# Numerical precision of the TensorRT model.
+precision=${CK_WEIGHTS_PRECISION:-fp16}
+echo "- weights precision: ${precision}"
+
 # Prepare record UOA and tags.
 mlperf="mlperf"
 division="closed"
@@ -226,7 +234,7 @@ for i in $(seq 1 ${#ips[@]}); do
   ssh -n -f ${USER}@${ip} -p ${port} \
   "bash -c 'nohup \
     ck benchmark program:zpp-worker-tensorrt-py --repetitions=1 \
-    --dep_add_tags.weights=converted-from-onnx,maxbatch.20,fp16 \
+    --dep_add_tags.weights=converted-from-onnx,maxbatch.${maxbatch},${precision} \
     --dep_add_tags.lib-python-tensorrt=python-package,tensorrt \
     --env.CK_HUB_IP=${hub_ip} \
     --env.CK_WORKER_ID=${worker_id} \
@@ -254,7 +262,7 @@ sleep 1s
 # Launch the hub program.
 read -d '' CMD <<END_OF_CMD
 ck benchmark program:${program} --repetitions=1 \
---dep_add_tags.weights=converted-from-onnx,maxbatch.20,fp16 \
+--dep_add_tags.weights=converted-from-onnx,maxbatch.${maxbatch},${precision} \
 --dep_add_tags.images=rgb8 \
 --env.CK_ENV_LOADGEN_CONFIG_FILE=${config_file} \
 --env.CK_LOADGEN_SCENARIO=${scenario} \
