@@ -44,7 +44,7 @@
       "local": "yes", 
       "name": "TensorRT model", 
       "sort": 50, 
-      "tags": "tensorrt,model,image-classification"
+      "tags": "tensorrt,model"
     }
   }, 
   "run_vars": {

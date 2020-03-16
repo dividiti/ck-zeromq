@@ -28,6 +28,17 @@ WORKER_POSTWORK_TIMEOUT_S = os.getenv('CK_WORKER_POSTWORK_TIMEOUT_S', '')  # emp
 ## Model properties:
 #
 MODEL_PATH              = os.environ['CK_ENV_TENSORRT_MODEL_FILENAME']
+MODEL_PLUGIN_PATH       = os.getenv('ML_MODEL_TENSORRT_PLUGIN','')
+
+if MODEL_PLUGIN_PATH:
+    import ctypes
+    if not os.path.isfile(MODEL_PLUGIN_PATH):
+        raise IOError("{}\n{}\n".format(
+            "Failed to load library ({}).".format(MODEL_PLUGIN_PATH),
+            "Please build the plugin."
+        ))
+    ctypes.CDLL(MODEL_PLUGIN_PATH)
+
 MODEL_DATA_LAYOUT       = os.getenv('ML_MODEL_DATA_LAYOUT', 'NCHW')
 MODEL_COLOURS_BGR       = os.getenv('ML_MODEL_COLOUR_CHANNELS_BGR', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
 MODEL_INPUT_DATA_TYPE   = os.getenv('ML_MODEL_INPUT_DATA_TYPE', 'float32')
@@ -68,6 +79,7 @@ pycuda_context = pycuda.tools.make_default_context()
 
 TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 try:
+    trt.init_libnvinfer_plugins(TRT_LOGGER, "")
     with open(MODEL_PATH, "rb") as f, trt.Runtime(TRT_LOGGER) as runtime:
         serialized_engine = f.read()
         trt_engine = runtime.deserialize_cuda_engine(serialized_engine)
@@ -105,8 +117,8 @@ for interface_layer in trt_engine:
     print("{} layer {}: dtype={}, shape={}, elements_per_max_batch={}".format(interface_type, interface_layer, dtype, shape, size))
 
 cuda_stream         = cuda.Stream()
-model_monopixels    = trt.volume(model_input_shape)
-model_classes       = trt.volume(model_output_shape)
+input_volume        = trt.volume(model_input_shape)     # total number of monochromatic subpixels (before batching)
+output_volume       = trt.volume(model_output_shape)    # total number of elements in one image prediction (before batching)
 
 if MODEL_DATA_LAYOUT == 'NHWC':
     (MODEL_IMAGE_HEIGHT, MODEL_IMAGE_WIDTH, MODEL_IMAGE_CHANNELS) = model_input_shape
@@ -121,6 +133,8 @@ print('Model input data type: {}'.format(MODEL_INPUT_DATA_TYPE))
 print('Model (internal) data type: {}'.format(MODEL_DATA_TYPE))
 print('Model BGR colours: {}'.format(MODEL_COLOURS_BGR))
 print('Model max_batch_size: {}'.format(max_batch_size))
+print('Model input_volume: {}'.format(input_volume))
+print('Model output_volume: {}'.format(output_volume))
 print('Image transfer mode: {}'.format(TRANSFER_MODE))
 print('Transferred images need to be converted to the input data type of the model: {}'.format(CONVERSION_NEEDED))
 print('Transferred images need to be preprocessed (e.g. by subtracting means): {}'.format(PREPROCESS_ON_GPU))
@@ -272,15 +286,15 @@ with trt_engine.create_execution_context() as trt_context:
                 num_raw_bytes   = len(batch_data)
 
                 if CONVERSION_NEEDED:
-                    batch_size      = num_raw_bytes // model_monopixels
+                    batch_size      = num_raw_bytes // input_volume
                     converted_batch = None
                 else:
-                    batch_size      = num_raw_bytes // model_monopixels // model_input_type_size
+                    batch_size      = num_raw_bytes // input_volume // model_input_type_size
                     converted_batch = batch_data
             elif TRANSFER_MODE in ('json', 'pickle', 'numpy'):
                 job_id      = job_data_struct['job_id']
                 batch_data  = job_data_struct['batch_data']
-                batch_size  = len(batch_data) // model_monopixels
+                batch_size  = len(batch_data) // input_volume
                 if type(batch_data)==list: # json
                     converted_batch = struct.pack("{}{}".format(len(batch_data), CONVERSION_TYPE_SYMBOL), *batch_data)
                 elif CONVERSION_NEEDED: # pickle, numpy
@@ -289,6 +303,7 @@ with trt_engine.create_execution_context() as trt_context:
                     converted_batch = batch_data
 
             if converted_batch is not None:
+                print("converted_batch is not None: {}".format(converted_batch))
                 memcpy_htod_start = time.time()
                 cuda.memcpy_htod_async(d_inputs[0], converted_batch, cuda_stream) # assuming one input layer for image classification
                 memcpy_htod_time_ms = (time.time() - memcpy_htod_start)*1000
@@ -335,26 +350,30 @@ with trt_engine.create_execution_context() as trt_context:
         floatize_time_ms            = (inference_start-floatize_start)*1000 - memcpy_htod_time_ms
         wait_and_receive_time_ms    = (floatize_start-wait_and_receive_start)*1000
 
-        if WORKER_OUTPUT_FORMAT == 'softmax':
-            if TRANSFER_MODE == 'dummy':        # no inference - fake a softmax batch
-                merged_batch_predictions = [ 0 ]*1001*batch_size
-            else:
-                batch_results = h_output[:model_classes*batch_size].tolist()
+        if TRANSFER_MODE == 'dummy':        # no inference - fake a batch
+            merged_batch_predictions = [ 0 ] * output_volume * batch_size
+        else:
+            batch_results = h_output[:output_volume * batch_size].tolist()
 
-                if model_classes == 1:          # model returns argmax - fake the softmax by padding with 1000 zeros (1001 overall)
+            i = 0
+            for flt in batch_results:
+                i+=1
+                print(flt, end=', ' if i%7 else '\n')
+            print("")
+
+            if WORKER_OUTPUT_FORMAT == 'direct_return':
+                merged_batch_predictions = batch_results
+
+            elif WORKER_OUTPUT_FORMAT == 'softmax':
+                if output_volume == 1:          # model returns argmax - fake the softmax by padding with 1000 zeros (1001 overall)
                     merged_batch_predictions = []
                     for arg_max in batch_results:
                         merged_batch_predictions.extend( [0]*(arg_max +1) + [1] + [0]*(1000-arg_max-1) )
                 else:                           # model returns softmax - just pass it on
                     merged_batch_predictions = batch_results
 
-        elif WORKER_OUTPUT_FORMAT == 'argmax':
-            if TRANSFER_MODE == 'dummy':        # no inference - fake an argmax batch
-                merged_batch_predictions = [ 0 ]*batch_size
-            else:
-                batch_results = h_output[:model_classes*batch_size].tolist()
-
-                if model_classes == 1:          # model returns argmax - just pass it on
+            elif WORKER_OUTPUT_FORMAT == 'argmax':
+                if output_volume == 1:          # model returns argmax - just pass it on
                     merged_batch_predictions = batch_results
                 else:                           # model returns softmax - filter it to return argmax
                     merged_batch_predictions = []
