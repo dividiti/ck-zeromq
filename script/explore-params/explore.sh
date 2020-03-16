@@ -81,19 +81,18 @@ echo
 
 # Run once for each point.
 experiment_id=1
-for ips in "${list_of_ips[@]}"; do
-  for batch_size in "${batch_sizes[@]}"; do
-    for transfer_mode in "${transfer_modes[@]}"; do
-      for transfer_float in "${transfer_floats[@]}"; do
-        if [ "${transfer_float}" = "YES" ] || [ "${transfer_mode}" = "json" ] ; then
-          preprocess_on_gpu_list=("NO")
-	else
-          preprocess_on_gpu_list=("NO" "YES")
-        fi
-        for preprocess_on_gpu in "${preprocess_on_gpu_list[@]}"; do
-            echo "[`date`] Experiment #${experiment_id}: ..."
-            experiment_id=$(( ${experiment_id}+1 ))
-            read -d '' CMD <<END_OF_CMD
+for batch_size in "${batch_sizes[@]}"; do
+  for transfer_mode in "${transfer_modes[@]}"; do
+    for transfer_float in "${transfer_floats[@]}"; do
+      if [ "${transfer_float}" = "YES" ] || [ "${transfer_mode}" = "json" ] ; then
+        preprocess_on_gpu_list=("NO")
+      else
+        preprocess_on_gpu_list=("NO" "YES")
+      fi
+      for preprocess_on_gpu in "${preprocess_on_gpu_list[@]}"; do
+          echo "[`date`] Experiment #${experiment_id}: ..."
+          experiment_id=$(( ${experiment_id}+1 ))
+          read -d '' CMD <<END_OF_CMD
 cd ${script_dir};
 CK_DRY_RUN=${dry_run} \
 CK_LOADGEN_MODE=${mode} \
@@ -108,16 +107,15 @@ CK_TRANSFER_FLOAT=${transfer_float} \
 CK_PREPROCESS_ON_GPU=${preprocess_on_gpu} \
 ./run.sh
 END_OF_CMD
-            echo ${CMD}
-            if [ -z "${dry_run}" ]; then
-              eval ${CMD}
-	    fi
-            echo
-	done # preprocess on gpu
-      done # transfer float
-    done # transfer mode
-  done # batch size
-done # ips
+          echo ${CMD}
+          if [ -z "${dry_run}" ]; then
+            eval ${CMD}
+          fi
+          echo
+      done # preprocess on gpu
+    done # transfer float
+  done # transfer mode
+done # batch size
 
 if [ -z "${dry_run}" ]; then
   echo "[`date`] Done."
