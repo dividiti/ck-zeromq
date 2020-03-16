@@ -6,6 +6,36 @@ echo "ZeroMQ Push-Pull exploration!"
 dry_run=${CK_DRY_RUN:-""}
 echo "- dry run: ${dry_run}"
 
+# Hub IP.
+hub_ip=${CK_HUB_IP:-"192.168.1.102"}
+echo "- hub IP: ${hub_ip}"
+
+# Workers can be defined in two ways:
+# (1) As a list of N IPs. Worker IDs get derived as a sequence from 1 to N.
+# (2) As a list of N IDs. Worker IPs get derived as a sequence of 192.168.1.<ID+1>.
+ips=( ${CK_WORKER_IPS:-""} ) # use parentheses to interpret the string as an array
+if [[ "${ips}" ]] # (1)
+then
+  num_ips=${#ips[@]}
+  ids=( $(seq 1 ${num_ips}) )
+  num_ids=${#ids[@]}
+else # (2)
+  ids=( ${CK_WORKER_IDS:-1} )
+  num_ids=${#ids[@]}
+  ips=( )
+  for id in ${ids[@]}; do
+    id_plus_1=$((id+1))
+    ips+=( "192.168.1.10${id_plus_1}" )
+  done
+  num_ips=${#ips[@]}
+fi
+echo "- ${num_ips} worker IP(s): ${ips[@]}"
+echo "- ${num_ids} worker ID(s): ${ids[@]}"
+if [[ ${num_ips} != ${num_ids} ]]; then
+  echo "ERROR: ${num_ips} not equal to ${num_ids}!"
+  exit 1
+fi
+
 # Time each worker should wait after last received work-item before exiting.
 postwork_timeout_s=${CK_WORKER_POSTWORK_TIMEOUT_S:-10}
 echo "- postwork timeout: ${postwork_timeout_s} s"
@@ -34,19 +64,16 @@ echo "- buffer size: ${buffer_size}"
 
 # Define the exploration space.
 if [ "${mode_tag}" = "accuracy" ]; then
-  list_of_ids=("3")
   batch_sizes=(1)
+  transfer_modes=("raw")
+  transfer_floats=("YES" "NO")
 else
-  list_of_ids=("1" "3" "1 3")
   batch_sizes=($(seq 1 4))
+  transfer_modes=("raw" "pickle" "numpy" "json")
+  transfer_floats=("YES" "NO")
 fi
-echo "- worker ids:  [ ${list_of_ids[@]} ]"
 echo "- batch sizes: [ ${batch_sizes[@]} ]"
-
-transfer_modes=("raw" "pickle" "numpy" "json")
 echo "- transfer modes: [ ${transfer_modes[@]} ]"
-
-transfer_floats=("YES" "NO")
 echo "- transfer floats: [ ${transfer_floats[@]} ]"
 
 # Blank line.
@@ -54,7 +81,7 @@ echo
 
 # Run once for each point.
 experiment_id=1
-for ids in "${list_of_ids[@]}"; do
+for ips in "${list_of_ips[@]}"; do
   for batch_size in "${batch_sizes[@]}"; do
     for transfer_mode in "${transfer_modes[@]}"; do
       for transfer_float in "${transfer_floats[@]}"; do
@@ -72,8 +99,9 @@ CK_DRY_RUN=${dry_run} \
 CK_LOADGEN_MODE=${mode} \
 CK_LOADGEN_DATASET_SIZE=${dataset_size} \
 CK_LOADGEN_BUFFER_SIZE=${buffer_size} \
+CK_HUB_IP="${hub_ip}" \
+CK_WORKER_IPS="${ips}" \
 CK_WORKER_POSTWORK_TIMEOUT_S=${postwork_timeout_s} \
-CK_WORKER_IDS="${ids}" \
 CK_BATCH_SIZE=${batch_size} \
 CK_TRANSFER_MODE=${transfer_mode} \
 CK_TRANSFER_FLOAT=${transfer_float} \
@@ -89,7 +117,7 @@ END_OF_CMD
       done # transfer float
     done # transfer mode
   done # batch size
-done # ids
+done # ips
 
 if [ -z "${dry_run}" ]; then
   echo "[`date`] Done."
