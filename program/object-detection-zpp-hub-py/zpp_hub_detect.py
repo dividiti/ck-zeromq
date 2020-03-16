@@ -74,7 +74,7 @@ if GIVEN_CHANNEL_MEANS:
 
 GIVEN_CHANNEL_STDS      = os.getenv('ML_MODEL_GIVEN_CHANNEL_STDS', '')
 if GIVEN_CHANNEL_STDS:
-    GIVEN_CHANNEL_STDS = np.array(GIVEN_CHANNEL_STDS.split(' '), dtype=VECTOR_DATA_TYPE)
+    GIVEN_CHANNEL_STDS = np.fromstring(GIVEN_CHANNEL_STDS, dtype=np.float32, sep=' ')
     if MODEL_COLOURS_BGR:
         GIVEN_CHANNEL_STDS  = GIVEN_CHANNEL_STDS[::-1]      # swapping Red and Blue colour channels
 
