@@ -2,8 +2,12 @@
 
 echo "ZeroMQ Push-Pull experiment:"
 
+# Task: image-classification or object-detection.
+task=${CK_TASK:-"image-classification"}
+echo "- task: ${task}"
+
 # Hub-side program.
-program="image-classification-zpp-hub-loadgen-py"
+program="${task}-zpp-hub-loadgen-py"
 program_dir=`ck find ck-zeromq:program:${program}`
 echo "- program: ${program}"
 echo "- program directory: ${program_dir}"
@@ -51,6 +55,20 @@ echo "- ${num_ips} worker IP(s): ${ips[@]}"
 echo "- ${num_ids} worker ID(s): ${ids[@]}"
 if [[ ${num_ips} != ${num_ids} ]]; then
   echo "ERROR: ${num_ips} not equal to ${num_ids}!"
+  exit 1
+fi
+
+# Worker ssh ports (22 by default).
+ports=( ${CK_WORKER_PORTS:-} ) # use parentheses to interpret the string as an array
+if [[ -z "${ports}" ]]; then
+  for id in ${ids[@]}; do
+    ports+=( "22" )
+  done
+fi
+num_ports=${#ports[@]}
+echo "- ${num_ports} worker port(s): ${ports[@]}"
+if [[ ${num_ports} != ${num_ids} ]]; then
+  echo "ERROR: ${num_ports} not equal to ${num_ids}!"
   exit 1
 fi
 
@@ -196,9 +214,10 @@ fi
 for i in $(seq 1 ${#ips[@]}); do
   ip=${ips[${i}-1]}
   id=${ids[${i}-1]}
+  port=${ports[${i}-1]}
   worker_id="worker-${id}"
   read -d '' CMD <<END_OF_CMD
-  ssh -n -f ${USER}@${ip} \
+  ssh -n -f ${USER}@${ip} -p ${port} \
   "bash -c 'nohup \
     ck benchmark program:zpp-worker-tensorrt-py --repetitions=1 \
     --dep_add_tags.weights=converted-from-onnx,maxbatch.20,fp16 \

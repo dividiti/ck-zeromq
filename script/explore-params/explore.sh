@@ -36,6 +36,20 @@ if [[ ${num_ips} != ${num_ids} ]]; then
   exit 1
 fi
 
+# Worker ssh ports (22 by default).
+ports=( ${CK_WORKER_PORTS:-} ) # use parentheses to interpret the string as an array
+if [[ -z "${ports}" ]]; then
+  for id in ${ids[@]}; do
+    ports+=( "22" )
+  done
+fi
+num_ports=${#ports[@]}
+echo "- ${num_ports} worker port(s): ${ports[@]}"
+if [[ ${num_ports} != ${num_ids} ]]; then
+  echo "ERROR: ${num_ports} not equal to ${num_ids}!"
+  exit 1
+fi
+
 # Time each worker should wait after last received work-item before exiting.
 postwork_timeout_s=${CK_WORKER_POSTWORK_TIMEOUT_S:-10}
 echo "- postwork timeout: ${postwork_timeout_s} s"
@@ -100,6 +114,7 @@ CK_LOADGEN_DATASET_SIZE=${dataset_size} \
 CK_LOADGEN_BUFFER_SIZE=${buffer_size} \
 CK_HUB_IP="${hub_ip}" \
 CK_WORKER_IPS="${ips}" \
+CK_WORKER_PORTS="${ports}" \
 CK_WORKER_POSTWORK_TIMEOUT_S=${postwork_timeout_s} \
 CK_BATCH_SIZE=${batch_size} \
 CK_TRANSFER_MODE=${transfer_mode} \
