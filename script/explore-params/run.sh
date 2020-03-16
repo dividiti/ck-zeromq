@@ -29,13 +29,19 @@ timestamp=$(date +%Y%m%d-%H%M%S)
 echo "- timestamp: ${timestamp}"
 
 # Hub IP.
-hub_ip=${CK_HUB_IP:-"192.168.1.102"}
+hub_ip=${CK_HUB_IP:-"localhost"}
 echo "- hub IP: ${hub_ip}"
 
 # Workers can be defined in two ways:
 # (1) As a list of N IPs. Worker IDs get derived as a sequence from 1 to N.
 # (2) As a list of N IDs. Worker IPs get derived as a sequence of 192.168.1.<ID+1>.
-ips=( ${CK_WORKER_IPS:-""} ) # use parentheses to interpret the string as an array
+ips=( ${CK_WORKER_IPS:-} ) # use parentheses to interpret the string as an array
+ids=( ${CK_WORKER_IDS:-} ) # use parentheses to interpret the string as an array
+if [[ -z "${ips}" ]] && [[ -z ${ids} ]]
+then
+  # If neither is defined, send to itself.
+  ips=( "${hub_ip}" )
+fi
 if [[ "${ips}" ]] # (1)
 then
   num_ips=${#ips[@]}
@@ -61,14 +67,14 @@ fi
 # Worker ssh ports (22 by default).
 ports=( ${CK_WORKER_PORTS:-} ) # use parentheses to interpret the string as an array
 if [[ -z "${ports}" ]]; then
-  for id in ${ids[@]}; do
+  for id in ${ips[@]}; do
     ports+=( "22" )
   done
 fi
 num_ports=${#ports[@]}
 echo "- ${num_ports} worker port(s): ${ports[@]}"
-if [[ ${num_ports} != ${num_ids} ]]; then
-  echo "ERROR: ${num_ports} not equal to ${num_ids}!"
+if [[ ${num_ports} != ${num_ips} ]]; then
+  echo "ERROR: ${num_ports} not equal to ${num_ips}!"
   exit 1
 fi
 
