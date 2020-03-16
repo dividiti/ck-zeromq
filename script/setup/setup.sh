@@ -39,7 +39,11 @@ if [ -z "${skip_python_setup}" ]; then
   ck detect soft:compiler.python --full_path=`which python3`
   exit_if_error
 
-  ck install package --tags=python-package,numpy
+  ck install package --tags=python-package,cython
+  exit_if_error
+
+  # NB: Building NumPy 1.18.1 requires Cython >= 0.29.14
+  ck virtual env --tags=cython --shell_cmd='ck install package --tags=python-package,numpy'
   exit_if_error
 
   ck install package --tags=python-package,zmq
