@@ -192,6 +192,10 @@ echo "- weights maxbatch: ${maxbatch}"
 precision=${CK_WEIGHTS_PRECISION:-fp16}
 echo "- weights precision: ${precision}"
 
+# Input preprocessing.
+preprocessing_tags=${CK_PREPROCESSING_TAGS:-"rgb8,full,side.224,preprocessed,using-opencv"}
+echo "- preprocessing tags: ${preprocessing_tags}"
+
 # Prepare record UOA and tags.
 mlperf="mlperf"
 division="closed"
@@ -203,8 +207,7 @@ record_uoa="${mlperf}.${division}.${task}.${platform}.${library}.${benchmark}.${
 record_tags="${mlperf},${division},${task},${platform},${library},${benchmark},${scenario_tag},${mode_tag}"
 if [ "${mode_tag}" = "accuracy" ]; then
   # Get substring after "preprocessed," to end, i.e. "using-opencv" here.
-  model_preprocessing_tags="full,side.224,preprocessed,using-opencv"
-  preprocessing="${model_preprocessing_tags##*preprocessed,}"
+  preprocessing="${preprocessing_tags##*preprocessed,}"
   record_uoa+=".${preprocessing}"
   record_tags+=",${preprocessing}"
 fi
@@ -263,7 +266,7 @@ sleep 1s
 read -d '' CMD <<END_OF_CMD
 ck benchmark program:${program} --repetitions=1 \
 --dep_add_tags.weights=converted-from-onnx,maxbatch.${maxbatch},${precision} \
---dep_add_tags.images=rgb8 \
+--dep_add_tags.images=${preprocessing_tags} \
 --env.CK_ENV_LOADGEN_CONFIG_FILE=${config_file} \
 --env.CK_LOADGEN_SCENARIO=${scenario} \
 --env.CK_LOADGEN_MODE=${mode} \
