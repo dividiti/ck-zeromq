@@ -30,6 +30,11 @@ echo "- skip LoadGen setup: ${skip_loadgen_setup}"
 skip_imagenet_detection=${CK_SKIP_IMAGENET_DETECTION:-""}
 echo "- skip ImageNet detection: ${skip_imagenet_detection}"
 
+# Fake ResNet detection: can be true for hub and must be false for worker.
+fake_resnet_detection=${CK_FAKE_RESNET_DETECTION:-NO}
+ck_tools=${CK_TOOLS:-"$HOME/CK-TOOLS"}
+echo "- fake ResNet detection: ${fake_resnet_detection} (CK_TOOLS=${ck_tools})"
+
 echo
 
 
@@ -107,6 +112,28 @@ if [ -z "${skip_imagenet_detection}" ]; then
   ck install package --tags=dataset,imagenet,aux
   exit_if_error
 fi
+
+
+if [ "${fake_resnet_detection}" != "NO" ]; then
+  # Detect fake ResNet model.
+  model_dir=${ck_tools}/model-tensorrt-converted-from-onnx-fp16-maxbatch.20-resnet
+  model_file=${model_dir}/converted_model.trt
+  mkdir -p ${model_dir}
+  touch ${model_file}
+  ck detect soft:model.tensorrt --cus.version=resnet50-fp16 \
+  --full_path=${model_file} \
+  --extra_tags=converted,converted-from-onnx,fp16,image-classification,maxbatch.20,model,resnet,tensorrt,trt \
+  --ienv.ML_MODEL_MAX_BATCH_SIZE=20 \
+  --ienv.ML_MODEL_DATA_TYPE=float16 \
+  --ienv.ML_MODEL_DATA_LAYOUT=NCHW \
+  --ienv.ML_MODEL_NORMALIZE_DATA=NO \
+  --ienv.ML_MODEL_SUBTRACT_MEAN=YES \
+  --ienv.ML_MODEL_GIVEN_CHANNEL_MEANS='123.68 116.78 103.94' \
+  --ienv.ML_MODEL_IMAGE_HEIGHT=224 \
+  --ienv.ML_MODEL_IMAGE_WIDTH=224
+  exit_if_error
+fi
+
 
 echo
 echo "Done."
