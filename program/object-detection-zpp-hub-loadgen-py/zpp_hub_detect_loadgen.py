@@ -1,0 +1,458 @@
+#!/usr/bin/env python3
+
+import array
+import json
+import os
+import struct
+import sys
+import threading
+import time
+
+import numpy as np
+import zmq
+import mlperf_loadgen as lg
+
+
+###########################################################################################################
+## NB: if you run into "zmq.error.ZMQError: Address already in use" after a crash,
+##     run
+##          kill `netstat -ltnp 2>/dev/null | grep python | grep 5557 | awk '{print $7}' | sed 's/\/.*//'`
+##     to stop the socket-hogging process.
+###########################################################################################################
+
+
+## ZMQ ports:
+#
+ZMQ_FAN_PORT            = os.getenv('CK_ZMQ_FAN_PORT', 5557)
+ZMQ_FUNNEL_PORT         = os.getenv('CK_ZMQ_FUNNEL_PORT', 5558)
+
+## LoadGen test properties:
+#
+LOADGEN_SCENARIO            = os.getenv('CK_LOADGEN_SCENARIO', 'SingleStream')
+LOADGEN_MODE                = os.getenv('CK_LOADGEN_MODE', 'AccuracyOnly')
+LOADGEN_BUFFER_SIZE         = int(os.getenv('CK_LOADGEN_BUFFER_SIZE'))      # set to how many samples are you prepared to keep in memory at once
+LOADGEN_DATASET_SIZE        = int(os.getenv('CK_LOADGEN_DATASET_SIZE'))     # set to how many total samples to choose from (0 = full set)
+LOADGEN_CONFIG_FILE         = os.getenv('CK_ENV_LOADGEN_CONFIG_FILE', '')   # Very Important: make sure 'pass_env_to_resolve' is on
+LOADGEN_MULTISTREAMNESS     = os.getenv('CK_LOADGEN_MULTISTREAMNESS', '')   # if not set, use value from LoadGen's config file, or LoadGen code
+LOADGEN_MAX_DURATION_S      = os.getenv('CK_LOADGEN_MAX_DURATION_S', '')    # if not set, use value from LoadGen's config file, or LoadGen code
+LOADGEN_COUNT_OVERRIDE      = os.getenv('CK_LOADGEN_COUNT_OVERRIDE', '')
+LOADGEN_TARGET_QPS          = os.getenv('CK_LOADGEN_TARGET_QPS', '')        # Maps to differently named internal config options, depending on scenario - see below.
+LOADGEN_WARMUP_SAMPLES      = int(os.getenv('CK_LOADGEN_WARMUP_SAMPLES', '0'))
+BATCH_SIZE                  = int(os.getenv('CK_BATCH_SIZE', '1'))
+SIDELOAD_JSON               = os.getenv('CK_LOADGEN_SIDELOAD_JSON','')
+
+## Model properties:
+#
+MODEL_PATH              = os.environ['CK_ENV_TENSORRT_MODEL_FILENAME']
+MODEL_DATA_LAYOUT       = os.getenv('ML_MODEL_DATA_LAYOUT', 'NCHW')
+LABELS_PATH             = os.environ['ML_MODEL_CLASS_LABELS']
+MODEL_COLOURS_BGR       = os.getenv('ML_MODEL_COLOUR_CHANNELS_BGR', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
+MODEL_INPUT_DATA_TYPE   = os.getenv('ML_MODEL_INPUT_DATA_TYPE', 'float32')
+MODEL_DATA_TYPE         = os.getenv('ML_MODEL_DATA_TYPE', '(unknown)')
+MODEL_MAX_PREDICTIONS   = int(os.getenv('ML_MODEL_MAX_PREDICTIONS', 100))
+MODEL_IMAGE_HEIGHT      = int(os.getenv('ML_MODEL_IMAGE_HEIGHT',
+                              os.getenv('CK_ENV_ONNX_MODEL_IMAGE_HEIGHT',
+                              os.getenv('CK_ENV_TENSORFLOW_MODEL_IMAGE_HEIGHT',
+                              ''))))
+MODEL_IMAGE_WIDTH       = int(os.getenv('ML_MODEL_IMAGE_WIDTH',
+                              os.getenv('CK_ENV_ONNX_MODEL_IMAGE_WIDTH',
+                              os.getenv('CK_ENV_TENSORFLOW_MODEL_IMAGE_WIDTH',
+                              ''))))
+MODEL_IMAGE_CHANNELS    = 3
+
+MODEL_SKIPPED_CLASSES   = os.getenv("ML_MODEL_SKIPS_ORIGINAL_DATASET_CLASSES", None)
+if (MODEL_SKIPPED_CLASSES):
+    SKIPPED_CLASSES = [int(x) for x in MODEL_SKIPPED_CLASSES.split(",")]
+else:
+    SKIPPED_CLASSES = None
+
+
+## Data transfer (numpy floats by default):
+#
+TRANSFER_MODE           = os.getenv('CK_TRANSFER_MODE', 'numpy')
+TRANSFER_FLOAT          = (os.getenv('CK_TRANSFER_FLOAT', 'YES') in ('YES', 'yes', 'ON', 'on', '1')) and (MODEL_INPUT_DATA_TYPE == 'float32')
+TRANSFER_TYPE_NP, TRANSFER_TYPE_SYMBOL = (np.float32, 'f') if TRANSFER_FLOAT else (np.int8, 'b')
+
+## Image normalization:
+#
+PREPROCESS_ON_GPU       = not TRANSFER_FLOAT and os.getenv('CK_PREPROCESS_ON_GPU', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
+
+MODEL_NORMALIZE_DATA    = os.getenv('ML_MODEL_NORMALIZE_DATA') in ('YES', 'yes', 'ON', 'on', '1')
+MODEL_NORMALIZE_LOWER   = float(os.getenv('ML_MODEL_NORMALIZE_LOWER', -1.0))
+MODEL_NORMALIZE_UPPER   = float(os.getenv('ML_MODEL_NORMALIZE_UPPER',  1.0))
+
+SUBTRACT_MEAN           = os.getenv('ML_MODEL_SUBTRACT_MEAN', 'YES') in ('YES', 'yes', 'ON', 'on', '1')
+GIVEN_CHANNEL_MEANS     = os.getenv('ML_MODEL_GIVEN_CHANNEL_MEANS', '')
+if GIVEN_CHANNEL_MEANS:
+    GIVEN_CHANNEL_MEANS = np.fromstring(GIVEN_CHANNEL_MEANS, dtype=np.float32, sep=' ')
+    if MODEL_COLOURS_BGR:
+        GIVEN_CHANNEL_MEANS = GIVEN_CHANNEL_MEANS[::-1]     # swapping Red and Blue colour channels
+
+GIVEN_CHANNEL_STDS      = os.getenv('ML_MODEL_GIVEN_CHANNEL_STDS', '')
+if GIVEN_CHANNEL_STDS:
+    GIVEN_CHANNEL_STDS = np.fromstring(GIVEN_CHANNEL_STDS, dtype=np.float32, sep=' ')
+    if MODEL_COLOURS_BGR:
+        GIVEN_CHANNEL_STDS  = GIVEN_CHANNEL_STDS[::-1]      # swapping Red and Blue colour channels
+
+
+## Input image properties:
+#
+IMAGE_DIR               = os.getenv('CK_ENV_DATASET_OBJ_DETECTION_PREPROCESSED_DIR')
+IMAGE_LIST_FILE_NAME    = os.getenv('CK_ENV_DATASET_OBJ_DETECTION_PREPROCESSED_SUBSET_FOF')
+IMAGE_LIST_FILE         = os.path.join(IMAGE_DIR, IMAGE_LIST_FILE_NAME)
+IMAGE_DATA_TYPE         = os.getenv('CK_ENV_DATASET_OBJ_DETECTION_PREPROCESSED_DATA_TYPE', 'uint8')
+
+## Misc
+#
+VERBOSITY_LEVEL         = int(os.getenv('CK_VERBOSE', '0'))
+
+
+## ZeroMQ communication setup:
+#
+zmq_context = zmq.Context()
+
+to_workers = zmq_context.socket(zmq.PUSH)
+to_workers.bind("tcp://*:{}".format(ZMQ_FAN_PORT))
+
+from_workers = zmq_context.socket(zmq.PULL)
+from_workers.bind("tcp://*:{}".format(ZMQ_FUNNEL_PORT))
+from_workers.RCVTIMEO = 2000
+
+
+# Load preprocessed image filepaths:
+image_path_list = []
+original_w_h    = []
+with open(IMAGE_LIST_FILE, 'r') as f:
+    for line in f:
+        file_name, width, height = line.strip().split(";")
+        image_path_list.append( os.path.join(IMAGE_DIR, file_name) )
+        original_w_h.append( (int(width), int(height)) )
+
+LOADGEN_DATASET_SIZE = LOADGEN_DATASET_SIZE or len(image_path_list)
+
+
+def load_labels(labels_filepath):
+    my_labels = []
+    input_file = open(labels_filepath, 'r')
+    for l in input_file:
+        my_labels.append(l.strip())
+    return my_labels
+
+
+def tick(letter, quantity=1):
+    print(letter + (str(quantity) if quantity>1 else ''), end='')
+
+
+# Currently loaded preprocessed images are stored in a dictionary:
+preprocessed_image_buffer = {}
+
+labels          = load_labels(LABELS_PATH)
+bg_class_offset = 1
+class_map       = None
+if (SKIPPED_CLASSES):
+    class_map = []
+    for i in range(len(labels) + bg_class_offset):
+        if i not in SKIPPED_CLASSES:
+            class_map.append(i)
+
+
+def load_query_samples(sample_indices):     # 0-based indices in our whole dataset
+    global MODEL_IMAGE_HEIGHT, MODEL_IMAGE_WIDTH, MODEL_IMAGE_CHANNELS
+    global preprocessed_image_buffer
+
+    print("load_query_samples({})".format(sample_indices))
+
+    tick('B', len(sample_indices))
+
+    for sample_index in sample_indices:
+        img_filepath = image_path_list[sample_index]
+        img = np.fromfile(img_filepath, np.dtype(IMAGE_DATA_TYPE))
+        img = img.reshape((MODEL_IMAGE_HEIGHT, MODEL_IMAGE_WIDTH, MODEL_IMAGE_CHANNELS))
+
+        if PREPROCESS_ON_GPU:
+            nhwc_img = img if MODEL_DATA_LAYOUT == 'NHWC' else img.transpose(2,0,1)
+            preprocessed_image_buffer[sample_index] = np.array(nhwc_img).ravel() # transfer bytes as unsigned
+        else:
+            if MODEL_COLOURS_BGR:
+                img = img[...,::-1]     # swapping Red and Blue colour channels
+
+            if IMAGE_DATA_TYPE != 'float32':
+                img = img.astype(np.float32)
+
+                # Normalize
+                if MODEL_NORMALIZE_DATA:
+                    img = img*(MODEL_NORMALIZE_UPPER-MODEL_NORMALIZE_LOWER)/255.0+MODEL_NORMALIZE_LOWER
+
+                # Subtract mean value
+                if SUBTRACT_MEAN:
+                    if len(GIVEN_CHANNEL_MEANS):
+                        img -= GIVEN_CHANNEL_MEANS
+                    else:
+                        img -= np.mean(img, axis=(0,1), keepdims=True)
+
+                if len(GIVEN_CHANNEL_STDS):
+                    img /= GIVEN_CHANNEL_STDS
+
+            if MODEL_INPUT_DATA_TYPE == 'int8' or TRANSFER_TYPE_NP == np.int8:
+                img = np.clip(img, -128, 127)
+
+            nhwc_img = img if MODEL_DATA_LAYOUT == 'NHWC' else img.transpose(2,0,1)
+            preprocessed_image_buffer[sample_index] = np.array(nhwc_img).ravel().astype(TRANSFER_TYPE_NP) # transfer bytes as signed
+
+        tick('l')
+    print('')
+
+
+def unload_query_samples(sample_indices):
+    #print("unload_query_samples({})".format(sample_indices))
+    global preprocessed_image_buffer
+
+    preprocessed_image_buffer = {}
+    tick('U')
+    print('')
+
+
+openme_data  = {}                   # side-loaded stats
+in_progress  = {}                   # local store of metadata about batches between issue_queries and send_responses
+funnel_should_be_running = True     # a way for the fan to signal to the funnel_thread to end
+warmup_mode              = False    # while on, QuerySampleResponses will not be sent to LoadGen
+
+def issue_queries(query_samples):
+
+    global BATCH_SIZE
+
+    if VERBOSITY_LEVEL:
+        printable_query = [(qs.index, qs.id) for qs in query_samples]
+        print("issue_queries( {} )".format(printable_query))
+    tick('Q', len(query_samples))
+
+    for j in range(0, len(query_samples), BATCH_SIZE):
+        batch               = query_samples[j:j+BATCH_SIZE]   # NB: the last one may be shorter than BATCH_SIZE in length
+        batch_vector_numpy  = np.ravel([ preprocessed_image_buffer[qs.index] for qs in batch ])
+
+        job_id      = batch[0].id   # assume it is both sufficiently unique and sufficiently small to fit our needs
+
+        in_progress[job_id] = {
+            'submission_time':  time.time(),
+            'batch':            batch,
+        }
+    
+        if TRANSFER_MODE == 'numpy':
+            job_data_struct = {
+                'job_id': job_id,
+                'batch_data': batch_vector_numpy,
+            }
+            to_workers.send_pyobj(job_data_struct)
+        elif TRANSFER_MODE == 'pickle':
+            job_data_struct = {
+                'job_id': job_id,
+                'batch_data': np.asarray(batch_vector_numpy),
+            }
+            to_workers.send_pyobj(job_data_struct)
+        elif TRANSFER_MODE == 'raw':
+            ## Slower, but insensitive to endianness:
+            # batch_vector_list = batch_vector_numpy.tolist()
+            # job_data_raw = struct.pack('<I{}{}'.format(len(batch_vector_list), TRANSFER_TYPE_SYMBOL), job_id, *batch_vector_list)
+
+            ## Faster, but potentially sensitive to endianness:
+            batch_vector_array = np.asarray(batch_vector_numpy)
+            job_data_raw   = struct.pack('<I', job_id) + memoryview( batch_vector_array )
+
+            to_workers.send(job_data_raw)
+        elif TRANSFER_MODE == 'json':
+            job_data_struct = {
+                'job_id': job_id,
+                'batch_data': batch_vector_numpy.tolist(),
+            }
+            to_workers.send_json(job_data_struct)
+
+        print("[fan] -> job_id={} {}".format(job_id, [qs.index for qs in batch]))
+
+
+def send_responses():
+
+    global funnel_should_be_running, warmup_mode, openme_data
+
+    funnel_start = time.time()
+
+    received_job_timings = openme_data['received_job_timings'] = []
+    inference_times_ms_by_worker_id = {}
+
+    while funnel_should_be_running:
+
+        try:
+            done_job            = from_workers.recv_json()
+        except Exception as e:
+            continue    # go back and check if the funnel_should_be_running condition has been turned off by the main thread
+
+        job_id              = done_job['job_id']
+        local_metadata      = in_progress.pop(job_id)
+        received_timestamp  = time.time()
+        roundtrip_time_ms   = (received_timestamp-local_metadata['submission_time'])*1000
+        worker_id           = done_job['worker_id']
+        inference_time_ms   = done_job['inference_time_ms']
+        floatize_time_ms    = done_job['floatize_time_ms']
+
+        print("[funnel] <- [worker {}] job_id={}, worker_type_conversion={:.2f} ms, inference={:.2f} ms, roundtrip={:.2f} ms".format(
+                            worker_id, job_id, floatize_time_ms, inference_time_ms, roundtrip_time_ms))
+
+        received_job_timings.append({
+            'job_id':                   job_id,
+            'worker_id':                worker_id,
+            'received_timestamp':       received_timestamp,
+            'worker_floatize_time_ms':  floatize_time_ms,
+            'inference_time_ms':        inference_time_ms,
+            'roundtrip_time_ms':        roundtrip_time_ms,
+        })
+
+        if warmup_mode:
+            continue
+
+        if worker_id not in inference_times_ms_by_worker_id:
+            inference_times_ms_by_worker_id[worker_id] = []
+        inference_times_ms_by_worker_id[worker_id].append( inference_time_ms )
+
+        batch               = local_metadata['batch']
+        batch_size          = len(batch)
+        raw_batch_results   = np.array(done_job['raw_batch_results'], dtype=np.float32)
+        batch_results       = np.split(raw_batch_results, batch_size)
+
+        response = []
+        response_array_refs = []    # This is needed to guarantee that the individual buffers to which we keep extra-Pythonian references, do not get garbage-collected.
+        for qs, all_boxes_for_this_sample in zip(batch, batch_results):
+
+            num_active_boxes_for_this_sample = all_boxes_for_this_sample[MODEL_MAX_PREDICTIONS*7].view('int32')
+            global_image_index = qs.index
+            width_orig, height_orig = original_w_h[global_image_index]
+            reformed_active_boxes_for_this_sample = []
+            for i in range(num_active_boxes_for_this_sample):
+                (image_id, ymin, xmin, ymax, xmax, confidence_score, class_number) = all_boxes_for_this_sample[i*7:(i+1)*7]
+
+                if class_map:
+                    class_number = float(class_map[int(class_number)])
+
+                reformed_active_boxes_for_this_sample += [
+                    float(global_image_index), ymin, xmin, ymax, xmax, confidence_score, class_number ]
+
+            response_array = array.array("B", np.array(reformed_active_boxes_for_this_sample, np.float32).tobytes())
+            response_array_refs.append(response_array)
+            bi = response_array.buffer_info()
+            response.append(lg.QuerySampleResponse(qs.id, bi[0], bi[1]))
+        lg.QuerySamplesComplete(response)
+        tick('R', len(response))
+        sys.stdout.flush()
+    print("[funnel] quitting")
+
+
+def flush_queries():
+    pass
+
+
+def process_latencies(latencies_ns):
+
+    global openme_data
+
+    latencies_ms = openme_data['loadgen_measured_latencies_ms'] = [ns/1.0e6 for ns in latencies_ns]
+    print("LG called process_latencies({})".format(latencies_ms))
+
+    latencies_size      = len(latencies_ms)
+    latencies_avg       = sum(latencies_ms)/latencies_size
+    latencies_sorted    = sorted(latencies_ms)
+    latencies_p50       = int(latencies_size * 0.5);
+    latencies_p90       = int(latencies_size * 0.9);
+    latencies_p99       = int(latencies_size * 0.99);
+
+    print("--------------------------------------------------------------------")
+    print("|                LATENCIES (in milliseconds and fps)               |")
+    print("--------------------------------------------------------------------")
+    print("Number of samples run:       {:9d}".format(latencies_size))
+    print("Min latency:                 {:9.2f} ms   ({:.3f} fps)".format(latencies_sorted[0], 1e3/latencies_sorted[0]))
+    print("Median latency:              {:9.2f} ms   ({:.3f} fps)".format(latencies_sorted[latencies_p50], 1e3/latencies_sorted[latencies_p50]))
+    print("Average latency:             {:9.2f} ms   ({:.3f} fps)".format(latencies_avg, 1e3/latencies_avg))
+    print("90 percentile latency:       {:9.2f} ms   ({:.3f} fps)".format(latencies_sorted[latencies_p90], 1e3/latencies_sorted[latencies_p90]))
+    print("99 percentile latency:       {:9.2f} ms   ({:.3f} fps)".format(latencies_sorted[latencies_p99], 1e3/latencies_sorted[latencies_p99]))
+    print("Max latency:                 {:9.2f} ms   ({:.3f} fps)".format(latencies_sorted[-1], 1e3/latencies_sorted[-1]))
+    print("--------------------------------------------------------------------")
+
+
+def benchmark_using_loadgen():
+    "Perform the benchmark using python API for the LoadGen library"
+
+    global funnel_should_be_running, warmup_mode, openme_data
+
+    scenario = {
+        'SingleStream':     lg.TestScenario.SingleStream,
+        'MultiStream':      lg.TestScenario.MultiStream,
+        'Server':           lg.TestScenario.Server,
+        'Offline':          lg.TestScenario.Offline,
+    }[LOADGEN_SCENARIO]
+
+    mode = {
+        'AccuracyOnly':     lg.TestMode.AccuracyOnly,
+        'PerformanceOnly':  lg.TestMode.PerformanceOnly,
+        'SubmissionRun':    lg.TestMode.SubmissionRun,
+    }[LOADGEN_MODE]
+
+    ts = lg.TestSettings()
+    if LOADGEN_CONFIG_FILE:
+        ts.FromConfig(LOADGEN_CONFIG_FILE, 'random_model_name', LOADGEN_SCENARIO)
+    ts.scenario = scenario
+    ts.mode     = mode
+
+    if LOADGEN_MULTISTREAMNESS:
+        ts.multi_stream_samples_per_query = int(LOADGEN_MULTISTREAMNESS)
+
+    if LOADGEN_MAX_DURATION_S:
+        ts.max_duration_ms = int(LOADGEN_MAX_DURATION_S)*1000
+
+    if LOADGEN_COUNT_OVERRIDE:
+        ts.min_query_count = int(LOADGEN_COUNT_OVERRIDE)
+        ts.max_query_count = int(LOADGEN_COUNT_OVERRIDE)
+
+    if LOADGEN_TARGET_QPS:
+        target_qps                  = float(LOADGEN_TARGET_QPS)
+        ts.multi_stream_target_qps  = target_qps
+        ts.server_target_qps        = target_qps
+        ts.offline_expected_qps     = target_qps
+
+    sut = lg.ConstructSUT(issue_queries, flush_queries, process_latencies)
+    qsl = lg.ConstructQSL(LOADGEN_DATASET_SIZE, LOADGEN_BUFFER_SIZE, load_query_samples, unload_query_samples)
+
+    log_settings = lg.LogSettings()
+    log_settings.enable_trace = False
+
+    funnel_thread = threading.Thread(target=send_responses, args=())
+    funnel_should_be_running = True
+    funnel_thread.start()
+
+    if LOADGEN_WARMUP_SAMPLES:
+        warmup_id_range = list(range(LOADGEN_WARMUP_SAMPLES))
+        load_query_samples(warmup_id_range)
+
+        warmup_mode = True
+        print("Sending out the warm-up samples, waiting for responses...")
+        issue_queries([lg.QuerySample(id,id) for id in warmup_id_range])
+
+        while len(in_progress)>0:       # waiting for the in_progress queue to clear up
+            time.sleep(1)
+        print(" Done!")
+
+        warmup_mode = False
+
+    lg.StartTestWithLogSettings(sut, qsl, ts, log_settings)
+
+    funnel_should_be_running = False    # politely ask the funnel_thread to end
+    funnel_thread.join()                # wait for it to actually end
+
+    from_workers.close()
+    to_workers.close()
+
+    lg.DestroyQSL(qsl)
+    lg.DestroySUT(sut)
+
+    if SIDELOAD_JSON:
+        with open(SIDELOAD_JSON, 'w') as sideload_fd:
+            json.dump(openme_data, sideload_fd, indent=4, sort_keys=True)
+
+
+benchmark_using_loadgen()
