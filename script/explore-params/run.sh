@@ -267,6 +267,7 @@ read -d '' CMD <<END_OF_CMD
 ck benchmark program:${program} --repetitions=1 \
 --dep_add_tags.weights=converted-from-onnx,maxbatch.${maxbatch},${precision} \
 --dep_add_tags.images=${preprocessing_tags} \
+--dep_add_tags.python=v3 \
 --env.CK_ENV_LOADGEN_CONFIG_FILE=${config_file} \
 --env.CK_LOADGEN_SCENARIO=${scenario} \
 --env.CK_LOADGEN_MODE=${mode} \
