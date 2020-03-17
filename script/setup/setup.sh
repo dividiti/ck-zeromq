@@ -15,30 +15,30 @@ echo
 echo "Setting up CK-ZeroMQ ..."
 
 # Skip Python setup: should be false for hub/worker.
-skip_python_setup=${CK_SKIP_PYTHON_SETUP:-""}
+skip_python_setup=${CK_SKIP_PYTHON_SETUP:-"NO"}
 echo "- skip Python setup: ${skip_python_setup}"
 
 # Skip NVIDIA setup: should be false for hub/worker.
-skip_nvidia_setup=${CK_SKIP_NVIDIA_SETUP:-""}
+skip_nvidia_setup=${CK_SKIP_NVIDIA_SETUP:-"NO"}
 echo "- skip NVIDIA setup: ${skip_nvidia_setup}"
 
 # Skip LoadGen setup: should be false for hub and true for worker.
-skip_loadgen_setup=${CK_SKIP_LOADGEN_SETUP:-""}
+skip_loadgen_setup=${CK_SKIP_LOADGEN_SETUP:-"NO"}
 echo "- skip LoadGen setup: ${skip_loadgen_setup}"
 
 # Skip ImageNet detection: should be false for hub and true for worker.
-skip_imagenet_detection=${CK_SKIP_IMAGENET_DETECTION:-""}
+skip_imagenet_detection=${CK_SKIP_IMAGENET_DETECTION:-"NO"}
 echo "- skip ImageNet detection: ${skip_imagenet_detection}"
 
 # Fake ResNet detection: can be true for hub and must be false for worker.
-fake_resnet_detection=${CK_FAKE_RESNET_DETECTION:-NO}
+fake_resnet_detection=${CK_FAKE_RESNET_DETECTION:-"NO"}
 ck_tools=${CK_TOOLS:-"$HOME/CK-TOOLS"}
 echo "- fake ResNet detection: ${fake_resnet_detection} (CK_TOOLS=${ck_tools})"
 
 echo
 
 
-if [ -z "${skip_python_setup}" ]; then
+if [ "${skip_python_setup}" == "NO" ]; then
   # Set up Python, NumPy, PyZMQ.
   echo "Setting up Python 3 and essential packages ..."
   ck detect soft:compiler.python --full_path=`which python3`
@@ -47,7 +47,7 @@ if [ -z "${skip_python_setup}" ]; then
   ck install package --tags=python-package,cython
   exit_if_error
 
-  # NB: Building NumPy 1.18.1 requires Cython >= 0.29.14
+  # NB: Building NumPy 1.18.1 requires Cython >= 0.29.14.
   ck virtual env --tags=cython --shell_cmd='ck install package --tags=python-package,numpy'
   exit_if_error
 
@@ -56,7 +56,7 @@ if [ -z "${skip_python_setup}" ]; then
 fi
 
 
-if [ -z "${skip_nvidia_setup}" ]; then
+if [ "${skip_nvidia_setup}" == "NO" ]; then
   # Detect TensorRT and PyTensorRT.
   echo "Setting up TensorRT/PyTensorRT ..."
 
@@ -85,7 +85,7 @@ if [ -z "${skip_nvidia_setup}" ]; then
 fi
 
 
-if [ -z "${skip_loadgen_setup}" ]; then
+if [ "${skip_loadgen_setup}" == "NO" ]; then
   # Install MLPerf Inference packages.
   echo "Setting up MLPerf Inference packages ..."
 
@@ -100,7 +100,7 @@ if [ -z "${skip_loadgen_setup}" ]; then
 fi
 
 
-if [ -z "${skip_imagenet_detection}" ]; then
+if [ "${skip_imagenet_detection}" == "NO" ]; then
   # Detect a preprocessed ImageNet validation dataset (50,000 images).
   echo "Detecting a preprocessed ImageNet validation set ..."
   imagenet_dir=${CK_ENV_DATASET_IMAGENET_PREPROCESSED_DIR:-"/datasets/dataset-imagenet-preprocessed-using-opencv-crop.875-full-inter.linear-side.224/ILSVRC2012_val_00000001.rgb8"}
