@@ -44,6 +44,10 @@ fi
 skip_imagenet_detection=${CK_SKIP_IMAGENET_DETECTION:-"NO"}
 echo "- skip ImageNet detection: ${skip_imagenet_detection}"
 
+# Skip SSD models setup: can be true for hub and should be false for worker.
+skip_ssd_setup=${CK_SKIP_SSD_SETUP:-"YES"}
+echo "- skip SSD-MobileNet and SSD-ResNet setup: ${skip_ssd_setup}"
+
 echo
 
 
@@ -143,6 +147,14 @@ if [ "${skip_imagenet_detection}" == "NO" ]; then
 
   # Install ImageNet labels.
   ck install package --tags=dataset,imagenet,aux
+  exit_if_error
+fi
+
+
+if [ "${skip_ssd_setup}" == "NO" ]; then
+  # Install the SSD models from NVIDIA's MLPerf Inference v0.5 submission (Xavier only at the moment).
+  ck install package --tags=object-detection,model,tensorrt,downloaded,ssd-mobilenet
+  ck install package --tags=object-detection,model,tensorrt,downloaded,ssd-resnet
   exit_if_error
 fi
 
