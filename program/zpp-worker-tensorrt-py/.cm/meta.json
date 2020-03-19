@@ -1,5 +1,6 @@
 {
   "backup_data_uid": "0b248b2913eb548b", 
+  "pass_env_to_resolve": "yes",
   "build_compiler_vars": {}, 
   "data_name": "zpp-worker-tensorrt-py", 
   "main_language": "python", 
@@ -40,6 +41,13 @@
       "sort": 40, 
       "tags": "lib,python-package,zmq"
     }, 
+    "plugin-nms": {
+      "enable_if_env": [ { "CK_WORKER_OUTPUT_FORMAT": ["direct_return"] } ],
+      "local": "yes",
+      "name": "TensorRT NMS plugin",
+      "sort": 60,
+      "tags": "tensorrt,plugin,nms"
+    },
     "weights": {
       "local": "yes", 
       "name": "TensorRT model", 

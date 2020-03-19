@@ -28,7 +28,7 @@ WORKER_POSTWORK_TIMEOUT_S = os.getenv('CK_WORKER_POSTWORK_TIMEOUT_S', '')  # emp
 ## Model properties:
 #
 MODEL_PATH              = os.environ['CK_ENV_TENSORRT_MODEL_FILENAME']
-MODEL_PLUGIN_PATH       = os.getenv('ML_MODEL_TENSORRT_PLUGIN','')
+MODEL_PLUGIN_PATH       = os.getenv('CK_ENV_TENSORRT_PLUGIN_PATH', os.getenv('ML_MODEL_TENSORRT_PLUGIN',''))
 
 if MODEL_PLUGIN_PATH:
     import ctypes
