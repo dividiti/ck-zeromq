@@ -26,14 +26,23 @@ echo "- skip NVIDIA setup: ${skip_nvidia_setup}"
 skip_loadgen_setup=${CK_SKIP_LOADGEN_SETUP:-"NO"}
 echo "- skip LoadGen setup: ${skip_loadgen_setup}"
 
-# Skip ImageNet detection: should be false for hub and true for worker.
-skip_imagenet_detection=${CK_SKIP_IMAGENET_DETECTION:-"NO"}
-echo "- skip ImageNet detection: ${skip_imagenet_detection}"
+# Skip ResNet setup: can be true for hub and must be false for worker.
+skip_resnet_setup=${CK_SKIP_RESNET_SETUP:-"NO"}
+echo "- skip ResNet setup: ${skip_resnet_setup}"
 
 # Fake ResNet detection: can be true for hub and must be false for worker.
 fake_resnet_detection=${CK_FAKE_RESNET_DETECTION:-"NO"}
 ck_tools=${CK_TOOLS:-"$HOME/CK-TOOLS"}
 echo "- fake ResNet detection: ${fake_resnet_detection} (CK_TOOLS=${ck_tools})"
+
+if [ "${skip_resnet_setup}" == "NO" ] && [ "${fake_resnet_detection}" != "NO" ]; then
+  echo "ERROR: You cannot set up ResNet and fake ResNet detection at the same time!"
+  exit 1
+fi
+
+# Skip ImageNet detection: should be false for hub and true for worker.
+skip_imagenet_detection=${CK_SKIP_IMAGENET_DETECTION:-"NO"}
+echo "- skip ImageNet detection: ${skip_imagenet_detection}"
 
 echo
 
@@ -77,11 +86,6 @@ if [ "${skip_nvidia_setup}" == "NO" ]; then
 
   ck install package --tags=python-package,pycuda
   exit_if_error
-
-  # Install the official MLPerf ONNX model and convert it to TensorRT with predefined options.
-  ck install package --tags=image-classification,model,onnx,resnet
-  ck install package --tags=image-classification,model,tensorrt,resnet,converted-from-onnx,maxbatch.20,fp16
-  exit_if_error
 fi
 
 
@@ -100,16 +104,10 @@ if [ "${skip_loadgen_setup}" == "NO" ]; then
 fi
 
 
-if [ "${skip_imagenet_detection}" == "NO" ]; then
-  # Detect a preprocessed ImageNet validation dataset (50,000 images).
-  echo "Detecting a preprocessed ImageNet validation set ..."
-  imagenet_dir=${CK_ENV_DATASET_IMAGENET_PREPROCESSED_DIR:-"/datasets/dataset-imagenet-preprocessed-using-opencv-crop.875-full-inter.linear-side.224/ILSVRC2012_val_00000001.rgb8"}
-  imagenet_tags=${CK_ENV_DATASET_IMAGENET_PREPROCESSED_TAGS:-"preprocessed,using-opencv,universal,crop.875,full,inter.linear,side.224"}
-  imagenet_version=${CK_ENV_DATASET_IMAGENET_PREPROCESSED_VERSION:-"using-opencv"}
-  ck detect soft:dataset.imagenet.preprocessed --full_path=${imagenet_dir} --extra_tags=${imagenet_tags} --cus.version=${imagenet_version}
-
-  # Install ImageNet labels.
-  ck install package --tags=dataset,imagenet,aux
+if [ "${skip_resnet_setup}" == "NO" ]; then
+  # Install the official MLPerf ONNX model and convert it to TensorRT with predefined options.
+  ck install package --tags=image-classification,model,onnx,resnet
+  ck install package --tags=image-classification,model,tensorrt,resnet,converted-from-onnx,maxbatch.20,fp16
   exit_if_error
 fi
 
@@ -131,6 +129,20 @@ if [ "${fake_resnet_detection}" != "NO" ]; then
   --ienv.ML_MODEL_GIVEN_CHANNEL_MEANS='123.68 116.78 103.94' \
   --ienv.ML_MODEL_IMAGE_HEIGHT=224 \
   --ienv.ML_MODEL_IMAGE_WIDTH=224
+  exit_if_error
+fi
+
+
+if [ "${skip_imagenet_detection}" == "NO" ]; then
+  # Detect a preprocessed ImageNet validation dataset (50,000 images).
+  echo "Detecting a preprocessed ImageNet validation set ..."
+  imagenet_dir=${CK_ENV_DATASET_IMAGENET_PREPROCESSED_DIR:-"/datasets/dataset-imagenet-preprocessed-using-opencv-crop.875-full-inter.linear-side.224/ILSVRC2012_val_00000001.rgb8"}
+  imagenet_tags=${CK_ENV_DATASET_IMAGENET_PREPROCESSED_TAGS:-"preprocessed,using-opencv,universal,crop.875,full,inter.linear,side.224"}
+  imagenet_version=${CK_ENV_DATASET_IMAGENET_PREPROCESSED_VERSION:-"using-opencv"}
+  ck detect soft:dataset.imagenet.preprocessed --full_path=${imagenet_dir} --extra_tags=${imagenet_tags} --cus.version=${imagenet_version}
+
+  # Install ImageNet labels.
+  ck install package --tags=dataset,imagenet,aux
   exit_if_error
 fi
 
