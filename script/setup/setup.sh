@@ -48,6 +48,10 @@ echo "- skip ImageNet detection: ${skip_imagenet_detection}"
 skip_ssd_setup=${CK_SKIP_SSD_SETUP:-"YES"}
 echo "- skip SSD-MobileNet and SSD-ResNet setup: ${skip_ssd_setup}"
 
+# Skip COCO preprocessing: should be false for hub and true for worker.
+skip_coco_preprocessing=${CK_SKIP_COCO_PREPROCESSING:-"YES"}
+echo "- skip COCO preprocessing: ${skip_coco_preprocessing}"
+
 echo
 
 
@@ -155,6 +159,25 @@ if [ "${skip_ssd_setup}" == "NO" ]; then
   # Install the SSD models from NVIDIA's MLPerf Inference v0.5 submission (Xavier only at the moment).
   ck install package --tags=object-detection,model,tensorrt,downloaded,ssd-mobilenet
   ck install package --tags=object-detection,model,tensorrt,downloaded,ssd-resnet
+  exit_if_error
+fi
+
+
+if [ "${skip_coco_preprocessing}" == "NO" ]; then
+  # Detect OpenCV in its location in JetPack 4.3.
+  ck detect soft --tags=python-package,cv2 --full_path=/usr/lib/python3.6/dist-packages/cv2/__init__.py
+  exit_if_error
+
+  # Install the COCO 2017 validation dataset (5,000 images).
+  ck install package --tags=object-detection,dataset,coco.2017,val
+  exit_if_error
+
+  # Preprocess for SSD-MobileNet (300x300 input images).
+  ck install package --tags=dataset,preprocessed,using-opencv,coco.2017,full,side.300
+  exit_if_error
+
+  # Preprocess for SSD-ResNet (1200x1200 input images).
+  ck install package --tags=dataset,preprocessed,using-opencv,coco.2017,full,side.1200
   exit_if_error
 fi
 
