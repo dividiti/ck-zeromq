@@ -1,56 +1,34 @@
 #!/bin/bash
 
+
 function exit_if_error() {
     if [ "${?}" != "0" ]; then exit 1; fi
 }
+
+
+echo "Setting up CK-ZeroMQ ..."
+
+# Skip Python setup: should be NO for hub; should be NO for worker.
+skip_python_setup=${CK_SKIP_PYTHON_SETUP:-"NO"}
+echo "- skip Python setup: ${skip_python_setup}"
+
+# Skip NVIDIA setup: can be YES or NO for hub; should be NO for worker.
+skip_nvidia_setup=${CK_SKIP_NVIDIA_SETUP:-"NO"}
+echo "- skip NVIDIA setup: ${skip_nvidia_setup}"
+
+# Skip LoadGen setup: should be NO for hub; can be YES or NO for worker.
+skip_loadgen_setup=${CK_SKIP_LOADGEN_SETUP:-"NO"}
+echo "- skip LoadGen setup: ${skip_loadgen_setup}"
+
+
+echo
+
 
 # Refresh CK-ZeroMQ and its dependencies.
 echo "Refreshing CK-ZeroMQ ..."
 ck pull repo:ck-zeromq --url=https://github.com/dividiti/ck-zeromq
 exit_if_error
 
-echo
-
-#
-echo "Setting up CK-ZeroMQ ..."
-
-# Skip Python setup: should be false for hub/worker.
-skip_python_setup=${CK_SKIP_PYTHON_SETUP:-"NO"}
-echo "- skip Python setup: ${skip_python_setup}"
-
-# Skip NVIDIA setup: should be false for hub/worker.
-skip_nvidia_setup=${CK_SKIP_NVIDIA_SETUP:-"NO"}
-echo "- skip NVIDIA setup: ${skip_nvidia_setup}"
-
-# Skip LoadGen setup: should be false for hub and true for worker.
-skip_loadgen_setup=${CK_SKIP_LOADGEN_SETUP:-"NO"}
-echo "- skip LoadGen setup: ${skip_loadgen_setup}"
-
-# Skip ResNet setup: can be true for hub and must be false for worker.
-skip_resnet_setup=${CK_SKIP_RESNET_SETUP:-"NO"}
-echo "- skip ResNet setup: ${skip_resnet_setup}"
-
-# Fake ResNet detection: can be true for hub and must be false for worker.
-fake_resnet_detection=${CK_FAKE_RESNET_DETECTION:-"NO"}
-ck_tools=${CK_TOOLS:-"$HOME/CK-TOOLS"}
-echo "- fake ResNet detection: ${fake_resnet_detection} (CK_TOOLS=${ck_tools})"
-
-if [ "${skip_resnet_setup}" == "NO" ] && [ "${fake_resnet_detection}" != "NO" ]; then
-  echo "ERROR: You cannot set up ResNet and fake ResNet detection at the same time!"
-  exit 1
-fi
-
-# Skip ImageNet detection: should be false for hub and true for worker.
-skip_imagenet_detection=${CK_SKIP_IMAGENET_DETECTION:-"NO"}
-echo "- skip ImageNet detection: ${skip_imagenet_detection}"
-
-# Skip SSD models setup: can be true for hub and should be false for worker.
-skip_ssd_setup=${CK_SKIP_SSD_SETUP:-"YES"}
-echo "- skip SSD-MobileNet and SSD-ResNet setup: ${skip_ssd_setup}"
-
-# Skip COCO preprocessing: should be false for hub and true for worker.
-skip_coco_preprocessing=${CK_SKIP_COCO_PREPROCESSING:-"YES"}
-echo "- skip COCO preprocessing: ${skip_coco_preprocessing}"
 
 echo
 
@@ -112,75 +90,7 @@ if [ "${skip_loadgen_setup}" == "NO" ]; then
 fi
 
 
-if [ "${skip_resnet_setup}" == "NO" ]; then
-  # Install the official MLPerf ONNX model and convert it to TensorRT with predefined options.
-  ck install package --tags=image-classification,model,onnx,resnet
-  ck install package --tags=image-classification,model,tensorrt,resnet,converted-from-onnx,maxbatch.20,fp16
-  exit_if_error
-fi
-
-
-if [ "${fake_resnet_detection}" != "NO" ]; then
-  # Detect fake ResNet model.
-  model_dir=${ck_tools}/model-tensorrt-converted-from-onnx-fp16-maxbatch.20-resnet
-  model_file=${model_dir}/converted_model.trt
-  mkdir -p ${model_dir}
-  touch ${model_file}
-  ck detect soft:model.tensorrt --cus.version=resnet50-fp16 \
-  --full_path=${model_file} \
-  --extra_tags=converted,converted-from-onnx,fp16,image-classification,maxbatch.20,model,resnet,tensorrt,trt \
-  --ienv.ML_MODEL_MAX_BATCH_SIZE=20 \
-  --ienv.ML_MODEL_DATA_TYPE=float16 \
-  --ienv.ML_MODEL_DATA_LAYOUT=NCHW \
-  --ienv.ML_MODEL_NORMALIZE_DATA=NO \
-  --ienv.ML_MODEL_SUBTRACT_MEAN=YES \
-  --ienv.ML_MODEL_GIVEN_CHANNEL_MEANS='123.68 116.78 103.94' \
-  --ienv.ML_MODEL_IMAGE_HEIGHT=224 \
-  --ienv.ML_MODEL_IMAGE_WIDTH=224
-  exit_if_error
-fi
-
-
-if [ "${skip_imagenet_detection}" == "NO" ]; then
-  # Detect a preprocessed ImageNet validation dataset (50,000 images).
-  echo "Detecting a preprocessed ImageNet validation set ..."
-  imagenet_dir=${CK_ENV_DATASET_IMAGENET_PREPROCESSED_DIR:-"/datasets/dataset-imagenet-preprocessed-using-opencv-crop.875-full-inter.linear-side.224/ILSVRC2012_val_00000001.rgb8"}
-  imagenet_tags=${CK_ENV_DATASET_IMAGENET_PREPROCESSED_TAGS:-"preprocessed,using-opencv,universal,crop.875,full,inter.linear,side.224"}
-  imagenet_version=${CK_ENV_DATASET_IMAGENET_PREPROCESSED_VERSION:-"using-opencv"}
-  ck detect soft:dataset.imagenet.preprocessed --full_path=${imagenet_dir} --extra_tags=${imagenet_tags} --cus.version=${imagenet_version}
-
-  # Install ImageNet labels.
-  ck install package --tags=dataset,imagenet,aux
-  exit_if_error
-fi
-
-
-if [ "${skip_ssd_setup}" == "NO" ]; then
-  # Install the SSD models from NVIDIA's MLPerf Inference v0.5 submission (Xavier only at the moment).
-  ck install package --tags=object-detection,model,tensorrt,downloaded,ssd-mobilenet
-  ck install package --tags=object-detection,model,tensorrt,downloaded,ssd-resnet
-  exit_if_error
-fi
-
-
-if [ "${skip_coco_preprocessing}" == "NO" ]; then
-  # Detect OpenCV in its location in JetPack 4.3.
-  ck detect soft --tags=python-package,cv2 --full_path=/usr/lib/python3.6/dist-packages/cv2/__init__.py
-  exit_if_error
-
-  # Install the COCO 2017 validation dataset (5,000 images).
-  ck install package --tags=object-detection,dataset,coco.2017,val
-  exit_if_error
-
-  # Preprocess for SSD-MobileNet (300x300 input images).
-  ck install package --tags=dataset,preprocessed,using-opencv,coco.2017,full,side.300
-  exit_if_error
-
-  # Preprocess for SSD-ResNet (1200x1200 input images).
-  ck install package --tags=dataset,preprocessed,using-opencv,coco.2017,full,side.1200
-  exit_if_error
-fi
-
-
 echo
+
+
 echo "Done."
