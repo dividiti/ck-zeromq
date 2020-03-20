@@ -45,14 +45,19 @@ if [ "${skip_coco_setup}" == "NO" ]; then
   exit_if_error
 
   # Install the COCO 2017 validation dataset (5,000 images).
-  ck install package --tags=object-detection,dataset,coco.2017,val
+  ck install package --tags=object-detection,dataset,coco.2017,val,original,full --cus.force_ask_path=no
   exit_if_error
 
-  # Preprocess for SSD-MobileNet (300x300 input images).
+  # Remove all training annotations (~765 MB).
+  ck virtual env \
+    --tags=object-detection,dataset,coco.2017,val,original,full \
+    --shell_cmd='rm $CK_ENV_DATASET_COCO_LABELS_DIR/*train2017.json'
+
+  # Preprocess for SSD-MobileNet (300x300 input images, 264 KB each, 1.3 GB in total).
   ck install package --tags=dataset,preprocessed,using-opencv,coco.2017,full,side.300
   exit_if_error
 
-  # Preprocess for SSD-ResNet (1200x1200 input images).
+  # Preprocess for SSD-ResNet (1200x1200 input images, 4.2 MB each, 21 GB in total).
   ck install package --tags=dataset,preprocessed,using-opencv,coco.2017,full,side.1200
   exit_if_error
 fi
