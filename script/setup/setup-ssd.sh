@@ -45,7 +45,7 @@ if [ "${skip_coco_setup}" == "NO" ]; then
   exit_if_error
 
   # Install the COCO 2017 validation dataset (5,000 images, 1.6 GB with annotations).
-  echo | ck install package --tags=object-detection,dataset,coco.2017,val,original,full
+  ck install package --tags=object-detection,dataset,coco.2017,val,original,full
   exit_if_error
 
   # Remove training annotations (~765 MB), leaving only validation annotations (~52 MB).
