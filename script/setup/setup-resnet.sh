@@ -31,6 +31,11 @@ if [ "${skip_resnet_setup}" == "NO" ] && [ "${fake_resnet_detection}" != "NO" ];
   exit 1
 fi
 
+if [ "${skip_resnet_setup}" != "NO" ] && [ "${fake_resnet_detection}" == "NO" ]; then
+  echo "ERROR: You cannot skip ResNet setup and not to fake ResNet detection at the same time!"
+  exit 1
+fi
+
 # Skip ImageNet detection: should be NO for hub; should be YES for worker.
 skip_imagenet_detection=${CK_SKIP_IMAGENET_DETECTION:-"NO"}
 echo "- skip ImageNet detection: ${skip_imagenet_detection}"
