@@ -44,11 +44,11 @@ if [ "${skip_coco_setup}" == "NO" ]; then
   ck detect soft --tags=python-package,cv2 --full_path=/usr/lib/python3.6/dist-packages/cv2/__init__.py
   exit_if_error
 
-  # Install the COCO 2017 validation dataset (5,000 images).
-  ck install package --tags=object-detection,dataset,coco.2017,val,original,full --cus.force_ask_path=no
+  # Install the COCO 2017 validation dataset (5,000 images, 1.6 GB with annotations).
+  echo | ck install package --tags=object-detection,dataset,coco.2017,val,original,full
   exit_if_error
 
-  # Remove all training annotations (~765 MB).
+  # Remove training annotations (~765 MB), leaving only validation annotations (~52 MB).
   ck virtual env \
     --tags=object-detection,dataset,coco.2017,val,original,full \
     --shell_cmd='rm $CK_ENV_DATASET_COCO_LABELS_DIR/*train2017.json'
