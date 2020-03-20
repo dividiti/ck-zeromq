@@ -1,18 +1,21 @@
 #!/bin/bash
 
+
 function exit_if_error() {
     if [ "${?}" != "0" ]; then exit 1; fi
 }
+
 
 # Refresh CK-MLPerf and its dependencies.
 echo "Refreshing CK-MLPerf ..."
 ck pull repo:ck-mlperf
 exit_if_error
 
+
 echo
 
-#
-echo "Setting up ResNet ..."
+
+echo "Setting up ResNet and ImageNet ..."
 
 # Skip ResNet setup: can be YES or NO for hub; should be NO for worker.
 skip_resnet_setup=${CK_SKIP_RESNET_SETUP:-"NO"}
@@ -80,4 +83,6 @@ fi
 
 
 echo
+
+
 echo "Done."
