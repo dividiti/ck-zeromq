@@ -90,8 +90,11 @@ fi
 postwork_timeout_s=${CK_WORKER_POSTWORK_TIMEOUT_S:-10}
 echo "- postwork timeout: ${postwork_timeout_s} s"
 
-# Worker response format: argmax returns class id, softmax returns
-# 1000 or 1001-element vector of class probabilities.
+# Worker response format:
+# - argmax returns a class id;
+# - softmax returns a 1000 or 1001-element vector of class probabilities;
+# - direct_return returns a (7*N+1)-element vector where N is the maximum
+# number of predictions (100 for SSD-MobileNet, 200 for SSD-ResNet).
 worker_output=${CK_WORKER_OUTPUT_FORMAT:-argmax}
 echo "- worker output: ${worker_output}"
 
