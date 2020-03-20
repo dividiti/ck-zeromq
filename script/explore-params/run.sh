@@ -6,6 +6,14 @@ echo "ZeroMQ Push-Pull experiment:"
 task=${CK_TASK:-"image-classification"}
 echo "- task: ${task}"
 
+# Platform: tx2, tx1, velociti, xavier, ...
+platform=${CK_PLATFORM:-"tx2"}
+echo "- platform: ${platform}"
+
+# Model tags:
+model_tags=${CK_MODEL_TAGS:-"converted-from-onnx"}
+echo "- model tags: ${model_tags}"
+
 # Hub-side program.
 program="${task}-zpp-hub-loadgen-py"
 program_dir=`ck find ck-zeromq:program:${program}`
@@ -199,8 +207,6 @@ echo "- preprocessing tags: ${preprocessing_tags}"
 # Prepare record UOA and tags.
 mlperf="mlperf"
 division="closed"
-task="image-classification"
-platform="tx2"
 library="zpp" # ZeroMQ Push-Pull.
 benchmark="resnet"
 record_uoa="${mlperf}.${division}.${task}.${platform}.${library}.${benchmark}.${scenario_tag}.${mode_tag}"
@@ -237,7 +243,7 @@ for i in $(seq 1 ${#ips[@]}); do
   ssh -n -f ${USER}@${ip} -p ${port} \
   "bash -c 'nohup \
     ck benchmark program:zpp-worker-tensorrt-py --repetitions=1 \
-    --dep_add_tags.weights=converted-from-onnx,maxbatch.${maxbatch},${precision} \
+    --dep_add_tags.weights=${model_tags},maxbatch.${maxbatch},${precision} \
     --dep_add_tags.lib-python-tensorrt=python-package,tensorrt \
     --env.CK_HUB_IP=${hub_ip} \
     --env.CK_WORKER_ID=${worker_id} \
@@ -265,8 +271,9 @@ sleep 1s
 # Launch the hub program.
 read -d '' CMD <<END_OF_CMD
 ck benchmark program:${program} --repetitions=1 \
---dep_add_tags.weights=converted-from-onnx,maxbatch.${maxbatch},${precision} \
+--dep_add_tags.weights=${model_tags},maxbatch.${maxbatch},${precision} \
 --dep_add_tags.images=${preprocessing_tags} \
+--dep_add_tags.dataset=${preprocessing_tags} \
 --dep_add_tags.python=v3 \
 --env.CK_ENV_LOADGEN_CONFIG_FILE=${config_file} \
 --env.CK_LOADGEN_SCENARIO=${scenario} \
