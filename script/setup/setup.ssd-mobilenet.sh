@@ -11,9 +11,9 @@ SSD_MODEL_TAGS="ssd-mobilenet"
 SSD_MODEL_SIDE=300
 
 
-# Refresh CK-MLPerf and its dependencies.
-echo "Refreshing CK-MLPerf ..."
-ck pull repo:ck-mlperf
+# Refresh CK-TensorRT and its dependencies.
+echo "Refreshing CK-TensorRT ..."
+ck pull repo:ck-tensorrt
 exit_if_error
 
 
