@@ -46,8 +46,10 @@ echo
 
 if [ "${skip_resnet_setup}" == "NO" ]; then
   # Install the official MLPerf ONNX model and convert it to TensorRT with predefined options.
-  ck install package --tags=image-classification,model,onnx,resnet
-  ck install package --tags=image-classification,model,tensorrt,resnet,converted-from-onnx,maxbatch.20,fp16
+  ck install package --tags=model,onnx,resnet
+  ck install package --tags=model,tensorrt,resnet,converted-from-onnx,maxbatch.20,fp16
+  # Install a quantized model converted for Xavier from NVIDIA's v0.5 submission.
+  ck install package --tags=model,tensorrt,resnet,downloaded,int8,linear,for.xavier
   exit_if_error
 fi
 
