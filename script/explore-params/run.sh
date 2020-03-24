@@ -25,7 +25,7 @@ config_file=${CK_ENV_LOADGEN_CONFIG_FILE:-${program_dir}/user.conf}
 echo "- config file: ${config_file}"
 
 # Model name for LoadGen config: resnet50, ssd-resnet34, mobilenet, ssd-mobilenet, gnmt.
-model_name=${CK_LOADGEN_MODEL_NAME:-"unknown'}
+model_name=${CK_LOADGEN_MODEL_NAME:-"unknown"}
 echo "- model name: ${model_name}"
 
 # Dry run - print commands but do not execute them.
