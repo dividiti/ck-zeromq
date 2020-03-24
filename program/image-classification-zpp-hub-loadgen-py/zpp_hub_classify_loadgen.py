@@ -33,6 +33,7 @@ LOADGEN_MODE                = os.getenv('CK_LOADGEN_MODE', 'AccuracyOnly')
 LOADGEN_BUFFER_SIZE         = int(os.getenv('CK_LOADGEN_BUFFER_SIZE'))      # set to how many samples are you prepared to keep in memory at once
 LOADGEN_DATASET_SIZE        = int(os.getenv('CK_LOADGEN_DATASET_SIZE'))     # set to how many total samples to choose from (0 = full set)
 LOADGEN_CONFIG_FILE         = os.getenv('CK_ENV_LOADGEN_CONFIG_FILE', '')   # Very Important: make sure 'pass_env_to_resolve' is on
+LOADGEN_MODEL_NAME          = os.getenv('CK_LOADGEN_MODEL_NAME', 'random_model_name')
 LOADGEN_MULTISTREAMNESS     = os.getenv('CK_LOADGEN_MULTISTREAMNESS', '')   # if not set, use value from LoadGen's config file, or LoadGen code
 LOADGEN_MAX_DURATION_S      = os.getenv('CK_LOADGEN_MAX_DURATION_S', '')    # if not set, use value from LoadGen's config file, or LoadGen code
 LOADGEN_COUNT_OVERRIDE      = os.getenv('CK_LOADGEN_COUNT_OVERRIDE', '')
@@ -350,7 +351,7 @@ def benchmark_using_loadgen():
 
     ts = lg.TestSettings()
     if LOADGEN_CONFIG_FILE:
-        ts.FromConfig(LOADGEN_CONFIG_FILE, 'random_model_name', LOADGEN_SCENARIO)
+        ts.FromConfig(LOADGEN_CONFIG_FILE, LOADGEN_MODEL_NAME, LOADGEN_SCENARIO)
     ts.scenario = scenario
     ts.mode     = mode
 
