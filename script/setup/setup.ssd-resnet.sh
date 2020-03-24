@@ -35,9 +35,10 @@ echo
 
 
 if [ "${skip_ssd_setup}" == "NO" ]; then
-  # Install SSD model generated from NVIDIA's MLPerf Inference v0.5 submission.
+  # Install SSD models generated from NVIDIA's MLPerf Inference v0.5 submission.
   # TODO: Xavier only at the moment.
   ck install package --tags=model,tensorrt,downloaded,${SSD_MODEL_TAGS}
+  ck install package --tags=model,tensorrt,downloaded,${SSD_MODEL_TAGS}.singlestream
   exit_if_error
 fi
 
