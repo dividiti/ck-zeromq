@@ -215,7 +215,7 @@ echo "- preprocessing tags: ${preprocessing_tags}"
 mlperf="mlperf"
 division="closed"
 library="zpp" # ZeroMQ Push-Pull.
-benchmark="resnet"
+benchmark=${model_name}
 record_uoa="${mlperf}.${division}.${task}.${platform}.${library}.${benchmark}.${scenario_tag}.${mode_tag}"
 record_tags="${mlperf},${division},${task},${platform},${library},${benchmark},${scenario_tag},${mode_tag}"
 if [ "${mode_tag}" = "accuracy" ]; then
@@ -283,6 +283,7 @@ ck benchmark program:${program} --repetitions=1 \
 --dep_add_tags.dataset=${preprocessing_tags} \
 --dep_add_tags.python=v3 \
 --env.CK_ENV_LOADGEN_CONFIG_FILE=${config_file} \
+--env.CK_LOADGEN_MODEL_NAME=${model_name} \
 --env.CK_LOADGEN_SCENARIO=${scenario} \
 --env.CK_LOADGEN_MODE=${mode} \
 --env.CK_LOADGEN_DATASET_SIZE=${dataset_size} \
