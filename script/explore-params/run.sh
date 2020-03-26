@@ -148,14 +148,38 @@ else
 fi
 echo "- mode: ${mode} (${mode_tag})"
 
-imagenet_size=50000
-if [ "${mode}" = "AccuracyOnly" ]; then
-  dataset_size=${CK_LOADGEN_DATASET_SIZE:-${imagenet_size}}
-  buffer_size=${CK_LOADGEN_BUFFER_SIZE:-500}
+if [ "${task}" = "image-classification" ]; then
+  imagenet_size=50000
+  if [ "${mode}" = "AccuracyOnly" ]; then
+    dataset_size=${CK_LOADGEN_DATASET_SIZE:-${imagenet_size}}
+    buffer_size=${CK_LOADGEN_BUFFER_SIZE:-500}
+  else
+    dataset_size=${CK_LOADGEN_DATASET_SIZE:-1024}
+    buffer_size=${CK_LOADGEN_BUFFER_SIZE:-1024}
+  fi
+elif [ "${task}" = "object-detection" ]; then
+  coco_size=5000
+  if [ "${mode}" = "AccuracyOnly" ]; then
+    dataset_size=${CK_LOADGEN_DATASET_SIZE:-${coco_size}}
+    buffer_size=${CK_LOADGEN_BUFFER_SIZE:-50}
+  else
+    if [ "${model_name}" = "ssd-mobilenet" ]; then
+      dataset_size=${CK_LOADGEN_DATASET_SIZE:-256}
+      buffer_size=${CK_LOADGEN_BUFFER_SIZE:-256}
+    elif [ "${model_name}" = "ssd-resnet34" ]; then
+      dataset_size=${CK_LOADGEN_DATASET_SIZE:-64}
+      buffer_size=${CK_LOADGEN_BUFFER_SIZE:-64}
+    else
+      dataset_size=${CK_LOADGEN_DATASET_SIZE:-1024}
+      buffer_size=${CK_LOADGEN_BUFFER_SIZE:-1024}
+    fi # model name
+  fi # mode
 else
-  dataset_size=${CK_LOADGEN_DATASET_SIZE:-1024}
-  buffer_size=${CK_LOADGEN_BUFFER_SIZE:-1024}
-fi
+  echo "ERROR: Unsupported task '${task}'!"
+  exit 1
+fi # task
+
+
 echo "- dataset size: ${dataset_size}"
 echo "- buffer size: ${buffer_size}"
 
@@ -224,9 +248,15 @@ if [ "${mode_tag}" = "accuracy" ]; then
   record_uoa+=".${preprocessing}"
   record_tags+=",${preprocessing}"
 fi
-if [ "${mode_tag}" = "accuracy" ] && [ "${dataset_size}" != "${imagenet_size}" ]; then
-  record_uoa+=".${dataset_size}"
-  record_tags+=",${dataset_size}"
+if [ "${mode_tag}" = "accuracy" ]; then
+  if [ "${task}" = "image-classification" ] && [ "${dataset_size}" != "${imagenet_size}" ]; then
+    record_uoa+=".${dataset_size}"
+    record_tags+=",${dataset_size}"
+  fi
+  if [ "${task}" = "object-detection" ] && [ "${dataset_size}" != "${coco_size}" ]; then
+    record_uoa+=".${dataset_size}"
+    record_tags+=",${dataset_size}"
+  fi
 fi
 echo "- record UOA: ${record_uoa}"
 echo "- record tags: ${record_tags}"
