@@ -90,6 +90,12 @@ if [[ ${num_ports} != ${num_ips} ]]; then
   exit 1
 fi
 
+# ZMQ ports: fan (out), funnel (in).
+fan_port=${CK_ZMQ_FAN_PORT:-15001}
+funnel_port=${CK_ZMQ_FUNNEL_PORT:-15002}
+echo "- fan port: ${fan_port}"
+echo "- funnel port: ${funnel_port}"
+
 # Time each worker should wait after last received work-item before exiting.
 postwork_timeout_s=${CK_WORKER_POSTWORK_TIMEOUT_S:-10}
 echo "- postwork timeout: ${postwork_timeout_s} s"
@@ -283,6 +289,8 @@ for i in $(seq 1 ${#ips[@]}); do
     --dep_add_tags.weights=${model_tags},maxbatch.${maxbatch},${precision} \
     --dep_add_tags.lib-python-tensorrt=python-package,tensorrt \
     --env.CK_HUB_IP=${hub_ip} \
+    --env.CK_ZMQ_FAN_PORT=${fan_port} \
+    --env.CK_ZMQ_FUNNEL_PORT=${funnel_port} \
     --env.CK_WORKER_ID=${worker_id} \
     --env.CK_WORKER_OUTPUT_FORMAT=${worker_output} \
     --env.CK_WORKER_POSTWORK_TIMEOUT_S=${postwork_timeout_s} \
@@ -312,6 +320,9 @@ ck benchmark program:${program} --repetitions=1 \
 --dep_add_tags.images=${preprocessing_tags} \
 --dep_add_tags.dataset=${preprocessing_tags} \
 --dep_add_tags.python=v3 \
+--env.CK_HUB_IP=${hub_ip} \
+--env.CK_ZMQ_FAN_PORT=${fan_port} \
+--env.CK_ZMQ_FUNNEL_PORT=${funnel_port} \
 --env.CK_ENV_LOADGEN_CONFIG_FILE=${config_file} \
 --env.CK_LOADGEN_MODEL_NAME=${model_name} \
 --env.CK_LOADGEN_SCENARIO=${scenario} \
