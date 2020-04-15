@@ -91,8 +91,8 @@ if [[ ${num_ports} != ${num_ips} ]]; then
 fi
 
 # ZMQ ports: fan (out), funnel (in).
-fan_port=${CK_ZMQ_FAN_PORT:-15001}
-funnel_port=${CK_ZMQ_FUNNEL_PORT:-15002}
+fan_port=${CK_ZMQ_FAN_PORT:-15051}
+funnel_port=${CK_ZMQ_FUNNEL_PORT:-15052}
 echo "- fan port: ${fan_port}"
 echo "- funnel port: ${funnel_port}"
 
