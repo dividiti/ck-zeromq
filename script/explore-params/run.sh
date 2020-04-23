@@ -215,6 +215,10 @@ echo "- count override: ${count_override} ('${COUNT_OVERRIDE}')"
 batch_size=${CK_BATCH_SIZE:-1}
 echo "- batch size: ${batch_size}"
 
+# Batch count.
+batch_count=${CK_BATCH_COUNT:-1}
+echo "- batch count: ${batch_count}"
+
 # In the MultiStream scenario, affects the number of streams that LoadGen issues
 # (aiming to meet the target latency of 50 ms).
 # By default, set to the product of the number of workers and the batch size.
@@ -334,6 +338,7 @@ ck benchmark program:${program} --repetitions=1 \
 --env.CK_TRANSFER_FLOAT=${transfer_float} \
 --env.CK_PREPROCESS_ON_GPU=${preprocess_on_gpu} \
 --env.CK_BATCH_SIZE=${batch_size} \
+--env.CK_BATCH_COUNT=${batch_count} \
 ${MULTISTREAMNESS} \
 ${TARGET_QPS} \
 ${COUNT_OVERRIDE} \
