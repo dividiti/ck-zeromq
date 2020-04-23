@@ -138,11 +138,12 @@ output_dict     = {     # to be topped up by both threads
     'batch_size': BATCH_SIZE,
     'batch_count': BATCH_COUNT,
     'avg_inference_time_ms_by_worker_id': {},
+    'avg_roundtrip_time_ms_by_worker_id': {},
     'min_roundtrip_time_ms_by_worker_id': {},
-    'max_roundtrip_time_ms_by_worker_id': {},
     'pc50_roundtrip_time_ms_by_worker_id': {},
     'pc90_roundtrip_time_ms_by_worker_id': {},
     'pc99_roundtrip_time_ms_by_worker_id': {},
+    'max_roundtrip_time_ms_by_worker_id': {},
 }
 
 
