@@ -362,11 +362,14 @@ if [ -z "${dry_run}" ]; then
 fi
 echo
 
-# Show the summary table.
+
+# Print the status.
 if [ -z "${dry_run}" ]; then
-  # Show the summary table.
-  head -n 12 "${program_dir}/tmp/mlperf_log_summary.txt"
-  echo
+  if [ "${loadgen}" = "YES" ]; then
+      # Show the summary table.
+      head -n 12 "${program_dir}/tmp/mlperf_log_summary.txt"
+      echo
+  fi
   echo "Done."
 else
   echo "Done (dry run)."
