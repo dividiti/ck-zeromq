@@ -138,6 +138,11 @@ output_dict     = {     # to be topped up by both threads
     'batch_size': BATCH_SIZE,
     'batch_count': BATCH_COUNT,
     'avg_inference_time_ms_by_worker_id': {},
+    'min_roundtrip_time_ms_by_worker_id': {},
+    'max_roundtrip_time_ms_by_worker_id': {},
+    'pc50_roundtrip_time_ms_by_worker_id': {},
+    'pc90_roundtrip_time_ms_by_worker_id': {},
+    'pc99_roundtrip_time_ms_by_worker_id': {},
 }
 
 
@@ -212,6 +217,7 @@ def funnel_code():
 
     funnel_start = time.time()
     inference_times_ms_by_worker_id = {}
+    roundtrip_times_ms_by_worker_id = {}
 
     for _ in range(BATCH_COUNT):
         done_job = from_workers.recv_json()
@@ -235,6 +241,10 @@ def funnel_code():
             inference_times_ms_by_worker_id[worker_id] = []
         inference_times_ms_by_worker_id[worker_id].append( inference_time_ms )
 
+        if worker_id not in roundtrip_times_ms_by_worker_id:
+            roundtrip_times_ms_by_worker_id[worker_id] = []
+        roundtrip_times_ms_by_worker_id[worker_id].append( roundtrip_time_ms )
+
         for sample_id, prediction_for_one_sample in zip(batch_ids, batch_results):
             if len(prediction_for_one_sample)==1:
                 predicted_label = int(prediction_for_one_sample[0])
@@ -254,7 +264,38 @@ def funnel_code():
         offset = 1 if len(inference_times_ms_by_worker_id[worker_id]) > 1 else 0    # skip the potential cold startup in case there is more data
         avg_inference_time_ms_by_worker_id = np.mean(inference_times_ms_by_worker_id[worker_id][offset:])
         output_dict['avg_inference_time_ms_by_worker_id'][worker_id] = avg_inference_time_ms_by_worker_id
-        print("[funnel] Average batch inference time on [worker {}] is {}".format(worker_id, avg_inference_time_ms_by_worker_id))
+        print("[funnel] Average batch inference time on [worker {}] is {:.2f}".format(worker_id, avg_inference_time_ms_by_worker_id))
+
+    print("")
+
+    for worker_id in roundtrip_times_ms_by_worker_id:
+        offset = 1 if len(roundtrip_times_ms_by_worker_id[worker_id]) > 1 else 0    # skip the potential cold startup in case there is more data
+
+        avg_roundtrip_time_ms_by_worker_id = np.mean(roundtrip_times_ms_by_worker_id[worker_id][offset:])
+        output_dict['avg_roundtrip_time_ms_by_worker_id'][worker_id] = avg_roundtrip_time_ms_by_worker_id
+        print("[funnel] Average batch roundtrip time on [worker {}] is {:.2f}".format(worker_id, avg_roundtrip_time_ms_by_worker_id))
+
+        min_roundtrip_time_ms_by_worker_id = np.min(roundtrip_times_ms_by_worker_id[worker_id][offset:])
+        output_dict['min_roundtrip_time_ms_by_worker_id'][worker_id] = min_roundtrip_time_ms_by_worker_id
+        print("[funnel] Minimum batch roundtrip time on [worker {}] is {:.2f}".format(worker_id, min_roundtrip_time_ms_by_worker_id))
+
+        pc50_roundtrip_time_ms_by_worker_id = np.percentile(roundtrip_times_ms_by_worker_id[worker_id][offset:], 50)
+        output_dict['pc50_roundtrip_time_ms_by_worker_id'][worker_id] = pc50_roundtrip_time_ms_by_worker_id
+        print("[funnel] 50% batch roundtrip time on [worker {}] is {:.2f}".format(worker_id, pc50_roundtrip_time_ms_by_worker_id))
+
+        pc90_roundtrip_time_ms_by_worker_id = np.percentile(roundtrip_times_ms_by_worker_id[worker_id][offset:], 90)
+        output_dict['pc90_roundtrip_time_ms_by_worker_id'][worker_id] = pc90_roundtrip_time_ms_by_worker_id
+        print("[funnel] 90% batch roundtrip time on [worker {}] is {:.2f}".format(worker_id, pc90_roundtrip_time_ms_by_worker_id))
+
+        pc99_roundtrip_time_ms_by_worker_id = np.percentile(roundtrip_times_ms_by_worker_id[worker_id][offset:], 99)
+        output_dict['pc99_roundtrip_time_ms_by_worker_id'][worker_id] = pc99_roundtrip_time_ms_by_worker_id
+        print("[funnel] 99% batch roundtrip time on [worker {}] is {:.2f}".format(worker_id, pc99_roundtrip_time_ms_by_worker_id))
+
+        max_roundtrip_time_ms_by_worker_id = np.max(roundtrip_times_ms_by_worker_id[worker_id][offset:])
+        output_dict['max_roundtrip_time_ms_by_worker_id'][worker_id] = max_roundtrip_time_ms_by_worker_id
+        print("[funnel] Maximum batch roundtrip time on [worker {}] is {:.2f}".format(worker_id, max_roundtrip_time_ms_by_worker_id))
+
+    print("")
 
     output_dict['funnel_time_s']        = funnel_time_s
     output_dict['avg_rountrip_time_ms'] = funnel_time_s*1000/BATCH_COUNT
