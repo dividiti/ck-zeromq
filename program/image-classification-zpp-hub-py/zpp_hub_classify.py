@@ -17,6 +17,21 @@ except NameError:
     raw_input = input
 
 
+import sys
+try:
+    sys.getwindowsversion()
+except AttributeError:
+    win = False
+else:
+    win = True
+
+if win:
+    import win32api,win32process,win32con
+    pid = win32api.GetCurrentProcessId()
+    handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, pid)
+    print("Setting REALTIME_PRIORITY_CLASS on Windows ..."
+    win32process.SetPriorityClass(handle, win32process.REALTIME_PRIORITY_CLASS)
+
 ## Model properties:
 #
 MODEL_PATH              = os.environ['CK_ENV_TENSORRT_MODEL_FILENAME']
