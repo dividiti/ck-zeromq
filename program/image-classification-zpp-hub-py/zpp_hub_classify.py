@@ -261,42 +261,46 @@ def funnel_code():
     funnel_time_s = time.time()-funnel_start
     print("[funnel] Done receiving batches. Receiving took {} s".format(funnel_time_s))
 
+    print("")
+
+    print("[funnel] Batch inference time (ms):")
     for worker_id in inference_times_ms_by_worker_id:
         offset = 1 if len(inference_times_ms_by_worker_id[worker_id]) > 1 else 0    # skip the potential cold startup in case there is more data
         avg_inference_time_ms_by_worker_id = np.mean(inference_times_ms_by_worker_id[worker_id][offset:])
         output_dict['avg_inference_time_ms_by_worker_id'][worker_id] = avg_inference_time_ms_by_worker_id
-        print("[funnel] Average batch inference time on [worker {}] is {:.2f}".format(worker_id, avg_inference_time_ms_by_worker_id))
+        print("- [worker {}] average: {:.2f}".format(worker_id, avg_inference_time_ms_by_worker_id))
 
     print("")
 
+    print("[funnel] Batch roundtrip time (ms):")
     for worker_id in roundtrip_times_ms_by_worker_id:
         offset = 1 if len(roundtrip_times_ms_by_worker_id[worker_id]) > 1 else 0    # skip the potential cold startup in case there is more data
 
         avg_roundtrip_time_ms_by_worker_id = np.mean(roundtrip_times_ms_by_worker_id[worker_id][offset:])
         output_dict['avg_roundtrip_time_ms_by_worker_id'][worker_id] = avg_roundtrip_time_ms_by_worker_id
-        print("[funnel] Average batch roundtrip time on [worker {}] is {:.2f}".format(worker_id, avg_roundtrip_time_ms_by_worker_id))
+        print("- [worker {}] average: {:.2f}".format(worker_id, avg_roundtrip_time_ms_by_worker_id))
 
         min_roundtrip_time_ms_by_worker_id = np.min(roundtrip_times_ms_by_worker_id[worker_id][offset:])
         output_dict['min_roundtrip_time_ms_by_worker_id'][worker_id] = min_roundtrip_time_ms_by_worker_id
-        print("[funnel] Minimum batch roundtrip time on [worker {}] is {:.2f}".format(worker_id, min_roundtrip_time_ms_by_worker_id))
+        print("- [worker {}] minimum: {:.2f}".format(worker_id, min_roundtrip_time_ms_by_worker_id))
 
         pc50_roundtrip_time_ms_by_worker_id = np.percentile(roundtrip_times_ms_by_worker_id[worker_id][offset:], 50)
         output_dict['pc50_roundtrip_time_ms_by_worker_id'][worker_id] = pc50_roundtrip_time_ms_by_worker_id
-        print("[funnel] 50% batch roundtrip time on [worker {}] is {:.2f}".format(worker_id, pc50_roundtrip_time_ms_by_worker_id))
+        print("- [worker {}] 50 percentile: {:.2f}".format(worker_id, pc50_roundtrip_time_ms_by_worker_id))
 
         pc90_roundtrip_time_ms_by_worker_id = np.percentile(roundtrip_times_ms_by_worker_id[worker_id][offset:], 90)
         output_dict['pc90_roundtrip_time_ms_by_worker_id'][worker_id] = pc90_roundtrip_time_ms_by_worker_id
-        print("[funnel] 90% batch roundtrip time on [worker {}] is {:.2f}".format(worker_id, pc90_roundtrip_time_ms_by_worker_id))
+        print("- [worker {}] 90 percentile: {:.2f}".format(worker_id, pc90_roundtrip_time_ms_by_worker_id))
 
         pc99_roundtrip_time_ms_by_worker_id = np.percentile(roundtrip_times_ms_by_worker_id[worker_id][offset:], 99)
         output_dict['pc99_roundtrip_time_ms_by_worker_id'][worker_id] = pc99_roundtrip_time_ms_by_worker_id
-        print("[funnel] 99% batch roundtrip time on [worker {}] is {:.2f}".format(worker_id, pc99_roundtrip_time_ms_by_worker_id))
+        print("- [worker {}] 99 percentile: {:.2f}".format(worker_id, pc99_roundtrip_time_ms_by_worker_id))
 
         max_roundtrip_time_ms_by_worker_id = np.max(roundtrip_times_ms_by_worker_id[worker_id][offset:])
         output_dict['max_roundtrip_time_ms_by_worker_id'][worker_id] = max_roundtrip_time_ms_by_worker_id
-        print("[funnel] Maximum batch roundtrip time on [worker {}] is {:.2f}".format(worker_id, max_roundtrip_time_ms_by_worker_id))
+        print("- [worker {}] maximum: {:.2f}".format(worker_id, max_roundtrip_time_ms_by_worker_id))
 
-    print("")
+        print("")
 
     output_dict['funnel_time_s']        = funnel_time_s
     output_dict['avg_rountrip_time_ms'] = funnel_time_s*1000/BATCH_COUNT
