@@ -203,7 +203,7 @@ def fan_code():
         time.sleep(SLEEP_AFTER_SEND_MS/1000)  # do not overflow the ZeroMQ
 
     fan_time_s = time.time()-fan_start-SLEEP_AFTER_SEND_MS/1000
-    print("[fan] Done submitting batches. Submission took {} s".format(fan_time_s))
+    print("[fan] Done submitting batches. Submission took {:.2f} s".format(fan_time_s))
 
     output_dict['fan_time_s']               = fan_time_s
     output_dict['avg_send_batch_time_ms']   = fan_time_s*1000/BATCH_COUNT
@@ -259,7 +259,7 @@ def funnel_code():
                     f.write('{}\n'.format(prob))
 
     funnel_time_s = time.time()-funnel_start
-    print("[funnel] Done receiving batches. Receiving took {} s".format(funnel_time_s))
+    print("[funnel] Done receiving batches. Receiving took {:.2f} s".format(funnel_time_s))
 
     print("")
 
