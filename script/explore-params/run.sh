@@ -14,8 +14,16 @@ echo "- platform: ${platform}"
 model_tags=${CK_MODEL_TAGS:-"converted-from-onnx"}
 echo "- model tags: ${model_tags}"
 
+# Use hub-side program with LoadGen: YES/NO.
+loadgen=${CK_LOADGEN:-YES}
+echo "- use LoadGen: ${loadgen}"
+
 # Hub-side program.
-program="${task}-zpp-hub-loadgen-py"
+if [ "${loadgen}" = "YES" ]; then
+    program="${task}-zpp-hub-loadgen-py"
+else
+    program="${task}-zpp-hub-py"
+fi
 program_dir=`ck find ck-zeromq:program:${program}`
 echo "- program: ${program}"
 echo "- program directory: ${program_dir}"
