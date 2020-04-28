@@ -14,6 +14,10 @@ echo "- platform: ${platform}"
 model_tags=${CK_MODEL_TAGS:-"converted-from-onnx"}
 echo "- model tags: ${model_tags}"
 
+# Launch hub-side program: NO for debugging only!
+launch_hub=${CK_HUB:-YES}
+echo "- launch hub: ${launch_hub}"
+
 # Use hub-side program with LoadGen: YES/NO.
 loadgen=${CK_LOADGEN:-YES}
 echo "- use LoadGen: ${loadgen}"
@@ -316,7 +320,7 @@ for i in $(seq 1 ${#ips[@]}); do
   > /home/$USER/nohup.log 2>&1 &'"
 END_OF_CMD
   echo ${CMD}
-  if [ -z "${dry_run}" ]; then
+  if [ -z "${dry_run}" ] && [ "${launch_hub}" == "YES" ]; then
     eval ${CMD}
   fi
   echo
