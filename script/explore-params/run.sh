@@ -15,7 +15,7 @@ model_tags=${CK_MODEL_TAGS:-"converted-from-onnx"}
 echo "- model tags: ${model_tags}"
 
 # Launch hub-side program: NO for debugging only!
-launch_hub=${CK_HUB:-YES}
+launch_hub=${CK_LAUNCH_HUB:-YES}
 echo "- launch hub: ${launch_hub}"
 
 # Use hub-side program with LoadGen: YES/NO.
@@ -320,7 +320,7 @@ for i in $(seq 1 ${#ips[@]}); do
   > /home/$USER/nohup.log 2>&1 &'"
 END_OF_CMD
   echo ${CMD}
-  if [ -z "${dry_run}" ] && [ "${launch_hub}" == "YES" ]; then
+  if [ -z "${dry_run}" ]; then
     eval ${CMD}
   fi
   echo
@@ -361,7 +361,7 @@ ${COUNT_OVERRIDE} \
 --skip_print_timers --skip_stat_analysis --process_multi_keys
 END_OF_CMD
 echo ${CMD}
-if [ -z "${dry_run}" ]; then
+if [ -z "${dry_run}" ] && [ "${launch_hub}" == "YES" ]; then
   eval ${CMD}
 fi
 echo
