@@ -59,7 +59,6 @@
       "sort": 130, 
       "tags": "loadgen,config"
     }, 
-
     "dataset": {
       "force_target_as_host": "yes",
       "local": "yes",
