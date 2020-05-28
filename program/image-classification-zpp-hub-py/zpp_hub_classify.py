@@ -8,7 +8,7 @@ import threading
 import time
 
 from imagenet_helper import (load_preprocessed_batch, image_list, class_labels,
-    MODEL_DATA_LAYOUT, MODEL_COLOURS_BGR, MODEL_INPUT_DATA_TYPE, MODEL_DATA_TYPE, MODEL_USE_DLA,
+    MODEL_DATA_LAYOUT, MODEL_COLOURS_BGR, MODEL_INPUT_DATA_TYPE, MODEL_DATA_TYPE, MODEL_USE_DLA, MODEL_MAX_BATCH_SIZE,
     IMAGE_DIR, IMAGE_LIST_FILE, MODEL_NORMALIZE_DATA, SUBTRACT_MEAN, GIVEN_CHANNEL_MEANS, BATCH_SIZE)
 
 import numpy as np
@@ -182,8 +182,9 @@ def funnel_code():
 
         batch_ids           = local_metadata['batch_ids']
         batch_size          = len(batch_ids)
+        apparent_batch_size = MODEL_MAX_BATCH_SIZE if MODEL_USE_DLA else batch_size
         raw_batch_results   = np.array(done_job['raw_batch_results'])
-        batch_results       = np.split(raw_batch_results, batch_size)
+        batch_results       = np.split(raw_batch_results, apparent_batch_size)[:batch_size]
 
         if worker_id not in inference_times_ms_by_worker_id:
             inference_times_ms_by_worker_id[worker_id] = []
