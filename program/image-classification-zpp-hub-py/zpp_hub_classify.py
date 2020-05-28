@@ -7,6 +7,10 @@ import struct
 import threading
 import time
 
+from imagenet_helper import (load_preprocessed_batch, image_list, class_labels,
+    MODEL_DATA_LAYOUT, MODEL_COLOURS_BGR, MODEL_INPUT_DATA_TYPE, MODEL_DATA_TYPE, MODEL_USE_DLA,
+    IMAGE_DIR, IMAGE_LIST_FILE, MODEL_NORMALIZE_DATA, SUBTRACT_MEAN, GIVEN_CHANNEL_MEANS, BATCH_SIZE)
+
 import numpy as np
 import zmq
 
@@ -32,21 +36,11 @@ if win:
     print("Setting REALTIME_PRIORITY_CLASS on Windows ...")
     win32process.SetPriorityClass(handle, win32process.REALTIME_PRIORITY_CLASS)
 
+
 ## Model properties:
 #
 MODEL_PATH              = os.environ['CK_ENV_TENSORRT_MODEL_FILENAME']
-MODEL_DATA_LAYOUT       = os.getenv('ML_MODEL_DATA_LAYOUT', 'NCHW')
-MODEL_COLOURS_BGR       = os.getenv('ML_MODEL_COLOUR_CHANNELS_BGR', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
-MODEL_INPUT_DATA_TYPE   = os.getenv('ML_MODEL_INPUT_DATA_TYPE', 'float32')
-MODEL_DATA_TYPE         = os.getenv('ML_MODEL_DATA_TYPE', '(unknown)')
-MODEL_IMAGE_HEIGHT      = int(os.getenv('ML_MODEL_IMAGE_HEIGHT',
-                              os.getenv('CK_ENV_ONNX_MODEL_IMAGE_HEIGHT',
-                              os.getenv('CK_ENV_TENSORFLOW_MODEL_IMAGE_HEIGHT',
-                              ''))))
-MODEL_IMAGE_WIDTH       = int(os.getenv('ML_MODEL_IMAGE_WIDTH',
-                              os.getenv('CK_ENV_ONNX_MODEL_IMAGE_WIDTH',
-                              os.getenv('CK_ENV_TENSORFLOW_MODEL_IMAGE_WIDTH',
-                              ''))))
+
 
 ## Transfer mode (numpy floats by default):
 #
@@ -61,30 +55,15 @@ SLEEP_AFTER_SEND_MS     = int(os.getenv('CK_SLEEP_AFTER_SEND_MS', 0))
 ZMQ_FAN_PORT            = os.getenv('CK_ZMQ_FAN_PORT', 5557)
 ZMQ_FUNNEL_PORT         = os.getenv('CK_ZMQ_FUNNEL_PORT', 5558)
 
-## Image normalization:
-#
-MODEL_NORMALIZE_DATA    = os.getenv('ML_MODEL_NORMALIZE_DATA') in ('YES', 'yes', 'ON', 'on', '1')
-SUBTRACT_MEAN           = os.getenv('ML_MODEL_SUBTRACT_MEAN', 'YES') in ('YES', 'yes', 'ON', 'on', '1')
-GIVEN_CHANNEL_MEANS     = os.getenv('ML_MODEL_GIVEN_CHANNEL_MEANS', '')
-if GIVEN_CHANNEL_MEANS:
-    GIVEN_CHANNEL_MEANS = np.fromstring(GIVEN_CHANNEL_MEANS, dtype=np.float32, sep=' ').astype(TRANSFER_TYPE_NP)
-    if MODEL_COLOURS_BGR:
-        GIVEN_CHANNEL_MEANS = GIVEN_CHANNEL_MEANS[::-1]     # swapping Red and Blue colour channels
-
-## Input image properties:
-#
-IMAGE_DIR               = os.getenv('CK_ENV_DATASET_IMAGENET_PREPROCESSED_DIR')
-IMAGE_LIST_FILE         = os.path.join(IMAGE_DIR, os.getenv('CK_ENV_DATASET_IMAGENET_PREPROCESSED_SUBSET_FOF'))
-IMAGE_DATA_TYPE         = os.getenv('CK_ENV_DATASET_IMAGENET_PREPROCESSED_DATA_TYPE', 'uint8')
 
 ## Writing the results out:
 #
 RESULTS_DIR             = os.getenv('CK_RESULTS_DIR', './results')
 FULL_REPORT             = os.getenv('CK_SILENT_MODE', '0') in ('NO', 'no', 'OFF', 'off', '0')
 
+
 ## Processing in batches:
 #
-BATCH_SIZE              = int(os.getenv('CK_BATCH_SIZE', 1))
 BATCH_COUNT             = int(os.getenv('CK_BATCH_COUNT', 1))
 
 
@@ -97,53 +76,6 @@ to_workers.bind("tcp://*:{}".format(ZMQ_FAN_PORT))
 
 from_workers = zmq_context.socket(zmq.PULL)
 from_workers.bind("tcp://*:{}".format(ZMQ_FUNNEL_PORT))
-
-
-def load_preprocessed_batch(image_list, image_index):
-    batch_data = []
-    for _ in range(BATCH_SIZE):
-        img_file = os.path.join(IMAGE_DIR, image_list[image_index])
-        img = np.fromfile(img_file, np.dtype(IMAGE_DATA_TYPE))
-        img = img.reshape((MODEL_IMAGE_HEIGHT, MODEL_IMAGE_WIDTH, 3))
-        if MODEL_COLOURS_BGR:
-            img = img[...,::-1]     # swapping Red and Blue colour channels
-
-        if IMAGE_DATA_TYPE != 'float32':
-            img = img.astype(np.float32)
-
-            # Normalize
-            if MODEL_NORMALIZE_DATA:
-                img = img/127.5 - 1.0
-
-            # Subtract mean value
-            if SUBTRACT_MEAN:
-                if len(GIVEN_CHANNEL_MEANS):
-                    img -= GIVEN_CHANNEL_MEANS
-                else:
-                    img -= np.mean(img, axis=(0,1), keepdims=True)
-
-        if MODEL_INPUT_DATA_TYPE == 'int8' or TRANSFER_TYPE_NP == np.int8:
-            img = np.clip(img, -128, 127)
-
-        # Add img to batch
-        batch_data.append( [img.astype(TRANSFER_TYPE_NP)] )
-        image_index += 1
-
-    nhwc_data = np.concatenate(batch_data, axis=0)
-
-    if MODEL_DATA_LAYOUT == 'NHWC':
-        #print(nhwc_data.shape)
-        return nhwc_data, image_index
-    else:
-        nchw_data = nhwc_data.transpose(0,3,1,2)
-        #print(nchw_data.shape)
-        return nchw_data, image_index
-
-
-print("Loading preprocessed image filenames...")
-with open(IMAGE_LIST_FILE, 'r') as f:
-    image_list = [ s.strip() for s in f ]
-
 
 
 ## (Shared) placeholders:
