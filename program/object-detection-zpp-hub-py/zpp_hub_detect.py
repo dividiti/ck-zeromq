@@ -7,6 +7,10 @@ import struct
 import threading
 import time
 
+from coco_helper import (load_preprocessed_batch, image_filenames, original_w_h, class_labels,
+    MODEL_DATA_LAYOUT, MODEL_COLOURS_BGR, MODEL_INPUT_DATA_TYPE, MODEL_DATA_TYPE, MODEL_USE_DLA, MODEL_MAX_BATCH_SIZE,
+    IMAGE_DIR, IMAGE_LIST_FILE, MODEL_NORMALIZE_DATA, SUBTRACT_MEAN, GIVEN_CHANNEL_MEANS, BATCH_SIZE, BATCH_COUNT)
+
 import numpy as np
 import zmq
 
@@ -25,21 +29,8 @@ SCORE_THRESHOLD = float(os.getenv('CK_DETECTION_THRESHOLD', 0.0))
 ## Model properties:
 #
 MODEL_PATH              = os.environ['CK_ENV_TENSORRT_MODEL_FILENAME']
-MODEL_DATA_LAYOUT       = os.getenv('ML_MODEL_DATA_LAYOUT', 'NCHW')
-LABELS_PATH             = os.getenv('CK_ENV_TENSORRT_MODEL_FLATLABELS_FILE') or os.environ['ML_MODEL_CLASS_LABELS']
-MODEL_COLOURS_BGR       = os.getenv('ML_MODEL_COLOUR_CHANNELS_BGR', 'NO') in ('YES', 'yes', 'ON', 'on', '1')
-MODEL_INPUT_DATA_TYPE   = os.getenv('ML_MODEL_INPUT_DATA_TYPE', 'float32')
-MODEL_DATA_TYPE         = os.getenv('ML_MODEL_DATA_TYPE', '(unknown)')
 MODEL_MAX_PREDICTIONS   = int(os.getenv('ML_MODEL_MAX_PREDICTIONS', 100))
 MODEL_SKIPPED_CLASSES   = os.getenv("ML_MODEL_SKIPS_ORIGINAL_DATASET_CLASSES", None)
-MODEL_IMAGE_HEIGHT      = int(os.getenv('ML_MODEL_IMAGE_HEIGHT',
-                              os.getenv('CK_ENV_ONNX_MODEL_IMAGE_HEIGHT',
-                              os.getenv('CK_ENV_TENSORFLOW_MODEL_IMAGE_HEIGHT',
-                              ''))))
-MODEL_IMAGE_WIDTH       = int(os.getenv('ML_MODEL_IMAGE_WIDTH',
-                              os.getenv('CK_ENV_ONNX_MODEL_IMAGE_WIDTH',
-                              os.getenv('CK_ENV_TENSORFLOW_MODEL_IMAGE_WIDTH',
-                              ''))))
 
 if (MODEL_SKIPPED_CLASSES):
     SKIPPED_CLASSES = [int(x) for x in MODEL_SKIPPED_CLASSES.split(",")]
@@ -59,31 +50,6 @@ SLEEP_AFTER_SEND_MS     = int(os.getenv('CK_SLEEP_AFTER_SEND_MS', 0))
 ZMQ_FAN_PORT            = os.getenv('CK_ZMQ_FAN_PORT', 5557)
 ZMQ_FUNNEL_PORT         = os.getenv('CK_ZMQ_FUNNEL_PORT', 5558)
 
-## Image normalization:
-#
-MODEL_NORMALIZE_DATA    = os.getenv('ML_MODEL_NORMALIZE_DATA') in ('YES', 'yes', 'ON', 'on', '1')
-MODEL_NORMALIZE_LOWER   = float(os.getenv('ML_MODEL_NORMALIZE_LOWER', -1.0))
-MODEL_NORMALIZE_UPPER   = float(os.getenv('ML_MODEL_NORMALIZE_UPPER',  1.0))
-
-SUBTRACT_MEAN           = os.getenv('ML_MODEL_SUBTRACT_MEAN', 'YES') in ('YES', 'yes', 'ON', 'on', '1')
-GIVEN_CHANNEL_MEANS     = os.getenv('ML_MODEL_GIVEN_CHANNEL_MEANS', '')
-if GIVEN_CHANNEL_MEANS:
-    GIVEN_CHANNEL_MEANS = np.fromstring(GIVEN_CHANNEL_MEANS, dtype=np.float32, sep=' ')
-    if MODEL_COLOURS_BGR:
-        GIVEN_CHANNEL_MEANS = GIVEN_CHANNEL_MEANS[::-1]     # swapping Red and Blue colour channels
-
-GIVEN_CHANNEL_STDS      = os.getenv('ML_MODEL_GIVEN_CHANNEL_STDS', '')
-if GIVEN_CHANNEL_STDS:
-    GIVEN_CHANNEL_STDS = np.fromstring(GIVEN_CHANNEL_STDS, dtype=np.float32, sep=' ')
-    if MODEL_COLOURS_BGR:
-        GIVEN_CHANNEL_STDS  = GIVEN_CHANNEL_STDS[::-1]      # swapping Red and Blue colour channels
-
-## Input image properties:
-#
-IMAGE_DIR               = os.getenv('CK_ENV_DATASET_OBJ_DETECTION_PREPROCESSED_DIR')
-IMAGE_LIST_FILE_NAME    = os.getenv('CK_ENV_DATASET_OBJ_DETECTION_PREPROCESSED_SUBSET_FOF')
-IMAGE_LIST_FILE         = os.path.join(IMAGE_DIR, IMAGE_LIST_FILE_NAME)
-IMAGE_DATA_TYPE         = os.getenv('CK_ENV_DATASET_OBJ_DETECTION_PREPROCESSED_DATA_TYPE', 'uint8')
 
 ## Writing the results out:
 #
@@ -92,12 +58,6 @@ DETECTIONS_OUT_DIR      = os.path.join(CUR_DIR, os.environ['CK_DETECTIONS_OUT_DI
 ANNOTATIONS_OUT_DIR     = os.path.join(CUR_DIR, os.environ['CK_ANNOTATIONS_OUT_DIR'])
 RESULTS_OUT_DIR         = os.path.join(CUR_DIR, os.environ['CK_RESULTS_OUT_DIR'])
 FULL_REPORT             = os.getenv('CK_SILENT_MODE', '0') in ('NO', 'no', 'OFF', 'off', '0')
-
-## Processing in batches:
-#
-BATCH_SIZE              = int(os.getenv('CK_BATCH_SIZE', 1))
-BATCH_COUNT             = int(os.getenv('CK_BATCH_COUNT', 1))
-SKIP_IMAGES             = int(os.getenv('CK_SKIP_IMAGES', 0))
 
 
 ## ZeroMQ communication setup:
@@ -109,78 +69,6 @@ to_workers.bind("tcp://*:{}".format(ZMQ_FAN_PORT))
 
 from_workers = zmq_context.socket(zmq.PULL)
 from_workers.bind("tcp://*:{}".format(ZMQ_FUNNEL_PORT))
-
-
-def load_preprocessed_batch(image_list, image_index):
-    batch_data = []
-
-    for _ in range(BATCH_SIZE):
-        img_filepath = os.path.join(IMAGE_DIR, image_list[image_index])
-        img = np.fromfile(img_filepath, np.dtype(IMAGE_DATA_TYPE))
-        img = img.reshape((MODEL_IMAGE_HEIGHT, MODEL_IMAGE_WIDTH, 3))
-        if MODEL_COLOURS_BGR:
-            img = img[...,::-1]     # swapping Red and Blue colour channels
-
-        if IMAGE_DATA_TYPE != 'float32':
-            img = img.astype(np.float32)
-
-            # Normalize
-            if MODEL_NORMALIZE_DATA:
-                img = img*(MODEL_NORMALIZE_UPPER-MODEL_NORMALIZE_LOWER)/255.0+MODEL_NORMALIZE_LOWER
-
-            # Subtract mean value
-            if SUBTRACT_MEAN:
-                if len(GIVEN_CHANNEL_MEANS):
-                    img -= GIVEN_CHANNEL_MEANS
-                else:
-                    img -= np.mean(img, axis=(0,1), keepdims=True)
-
-            if len(GIVEN_CHANNEL_STDS):
-                img /= GIVEN_CHANNEL_STDS
-
-        if MODEL_INPUT_DATA_TYPE == 'int8' or TRANSFER_TYPE_NP == np.int8:
-            img = np.clip(img, -128, 127)
-
-        # Add img to batch
-        batch_data.append( [img.astype(TRANSFER_TYPE_NP)] )
-        image_index += 1
-
-    nhwc_data = np.concatenate(batch_data, axis=0)
-
-    if MODEL_DATA_LAYOUT == 'NHWC':
-        #print(nhwc_data.shape)
-        return nhwc_data, image_index
-    else:
-        nchw_data = nhwc_data.transpose(0,3,1,2)
-        #print(nchw_data.shape)
-        return nchw_data, image_index
-
-
-def load_labels(labels_filepath):
-    my_labels = []
-    input_file = open(labels_filepath, 'r')
-    for l in input_file:
-        my_labels.append(l.strip())
-    return my_labels
-
-
-print("Loading preprocessed image filenames...")
-# Load preprocessed image filenames with original sizes:
-with open(IMAGE_LIST_FILE, 'r') as f:
-    image_list = [s.strip() for s in f]
-
-# Trim the input list of preprocessed files:
-image_list = image_list[SKIP_IMAGES: BATCH_COUNT * BATCH_SIZE + SKIP_IMAGES]
-
-# Creating a local list of processed files and parsing it:
-image_filenames = []
-original_w_h    = []
-with open(IMAGE_LIST_FILE_NAME, 'w') as f:
-    for line in image_list:
-        f.write('{}\n'.format(line))
-        file_name, width, height = line.split(";")
-        image_filenames.append( file_name )
-        original_w_h.append( (int(width), int(height)) )
 
 
 ## (Shared) placeholders:
@@ -265,14 +153,13 @@ def funnel_code():
         shutil.rmtree(DETECTIONS_OUT_DIR)
     os.mkdir(DETECTIONS_OUT_DIR)
 
-    labels          = load_labels(LABELS_PATH)
     bg_class_offset = 1
 
     ## Workaround for SSD-Resnet34 model incorrectly trained on filtered labels
     class_map = None
     if (SKIPPED_CLASSES):
         class_map = []
-        for i in range(len(labels) + bg_class_offset):
+        for i in range(len(class_labels) + bg_class_offset):
             if i not in SKIPPED_CLASSES:
                 class_map.append(i)
 
@@ -294,8 +181,9 @@ def funnel_code():
 
         batch_ids           = local_metadata['batch_ids']
         batch_size          = len(batch_ids)
+        apparent_batch_size = MODEL_MAX_BATCH_SIZE if MODEL_USE_DLA else batch_size
         raw_batch_results   = np.array(done_job['raw_batch_results'], dtype=np.float32)
-        batch_results       = np.split(raw_batch_results, batch_size)
+        batch_results       = np.split(raw_batch_results, apparent_batch_size)[:batch_size]
 
         if worker_id not in inference_times_ms_by_worker_id:
             inference_times_ms_by_worker_id[worker_id] = []
@@ -326,7 +214,7 @@ def funnel_code():
                         y1              = ymin * height_orig
                         x2              = xmax * width_orig
                         y2              = ymax * height_orig
-                        class_label     = labels[class_number - bg_class_offset]
+                        class_label     = class_labels[class_number - bg_class_offset]
                         det_file.write('{:.2f} {:.2f} {:.2f} {:.2f} {:.3f} {} {}\n'.format(
                                         x1, y1, x2, y2, confidence, class_number, class_label))
 
